@@ -86,6 +86,7 @@ class PN532Terminal:
         """Initialize REAL HARDWARE terminal"""
         self.port = port
         self.ser = None
+        self.target_selected = False  # Track if card target is selected
         
         logger.info("PN532 REAL HARDWARE Terminal initialized on %s", port)
         logger.info("REAL DATA ONLY - NO SIMULATION MODE")
@@ -114,6 +115,7 @@ class PN532Terminal:
     
     def disconnect(self):
         """Disconnect from REAL PN532 hardware"""
+        self.target_selected = False  # Reset target selection
         if self.ser and self.ser.is_open:
             self.ser.close()
             logger.info("REAL HARDWARE: Disconnected from PN532")
@@ -122,6 +124,10 @@ class PN532Terminal:
         """Send APDU command to card via PN532 hardware"""
         if not self.ser or not self.ser.is_open:
             logger.error("REAL HARDWARE: Serial port not open")
+            return None
+        
+        if not self.target_selected:
+            logger.error("REAL HARDWARE: No target selected! Card detection required first.")
             return None
         
         try:
@@ -192,7 +198,12 @@ class PN532Terminal:
                         logger.info("[REAL-RX] APDU response: %s", apdu_hex)
                         return apdu_hex
                 else:
-                    logger.warning("REAL HARDWARE: No valid data frame found in response")
+                    # Check if this is a communication error indicating lost card
+                    if len(response) <= 6:
+                        logger.warning("REAL HARDWARE: Possible card connection lost - short response")
+                        self.target_selected = False  # Reset target selection
+                    else:
+                        logger.warning("REAL HARDWARE: No valid data frame found in response")
                 
             logger.warning("REAL HARDWARE: No valid APDU response received")
             return None
@@ -272,6 +283,7 @@ class PN532Terminal:
                     # Check if card was detected (status byte after D5 4B)
                     if response[data_start + 2] == 0x01:  # Number of targets found
                         logger.info("REAL HARDWARE: Contactless card detected successfully!")
+                        self.target_selected = True  # Mark target as selected
                         return True
                     else:
                         logger.debug("REAL HARDWARE: No card detected in this attempt")
@@ -310,6 +322,14 @@ class PN532Terminal:
         
         for i, (command, description) in enumerate(workflow['commands'], 1):
             logger.info("REAL HARDWARE: Command %d/%d: %s", i, total_commands, description)
+            
+            # Check if target is still selected, re-detect if needed
+            if not self.target_selected:
+                logger.warning("REAL HARDWARE: Target lost, attempting re-detection...")
+                if not self.detect_card():
+                    logger.error("REAL HARDWARE: Failed to re-detect card, aborting workflow")
+                    break
+            
             response = self.send_apdu(command, description)
             
             if response:
