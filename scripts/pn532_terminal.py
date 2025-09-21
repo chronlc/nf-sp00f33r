@@ -1,14 +1,512 @@
 #!/usr/bin/env python3
 """
-PN532 Terminal Emulation Script for mag-sp00f Testing
-Provides automated NFC terminal functionality for validating HCE emulation.
+PN532 Terminal for EMV Contactless Testing with Multi-Workflow Support
+Enhanced version supporting 5 different EMV workflows
 """
 
-import argparse
-import sys
+import serial
 import time
+import sys
+import argparse
+import binascii
 import logging
-from typing import List, Optional, Dict, Tuple
+from typing import Optional, List, Tuple, Dict
+from enum import Enum
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class EMVWorkflow(Enum):
+    """EMV Workflow Types from emv.html analysis"""
+    VISA_MSD_TRACK2 = "visa_msd_track2"
+    US_DEBIT_FULL = "us_debit_full" 
+    MASTERCARD_MSD = "mastercard_msd"
+    DISCOVER_CONTACTLESS = "discover_contactless"
+    AMEX_EXPRESS_PAY = "amex_express_pay"
+
+# EMV Workflow Configurations
+EMV_WORKFLOWS = {
+    EMVWorkflow.VISA_MSD_TRACK2: {
+        "name": "VISA MSD Track2-from-GPO",
+        "aids": ["A0000000031010", "A0000000980840"],
+        "description": "Standard VISA MSD with Track2 from GPO command",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_TRACK2", "READ_RECORD"]
+    },
+    EMVWorkflow.US_DEBIT_FULL: {
+        "name": "US Common Debit Full EMV",
+        "aids": ["A0000000980840"],
+        "description": "Full EMV processing for US debit cards", 
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_FULL", "READ_RECORD", "GENERATE_AC"]
+    },
+    EMVWorkflow.MASTERCARD_MSD: {
+        "name": "MasterCard MSD",
+        "aids": ["A0000000041010"],
+        "description": "MasterCard Magstripe Downgrade",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_MSD", "READ_RECORD"]
+    },
+    EMVWorkflow.DISCOVER_CONTACTLESS: {
+        "name": "Discover Contactless", 
+        "aids": ["A0000001523010"],
+        "description": "Discover contactless payment flow",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_CONTACTLESS", "READ_RECORD"]
+    },
+    EMVWorkflow.AMEX_EXPRESS_PAY: {
+        "name": "American Express ExpressPay",
+        "aids": ["A00000002501"],
+        "description": "AMEX ExpressPay contactless",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_AMEX", "READ_RECORD"]
+    }
+}
+
+class PN532Terminal:
+    def __init__(self, port: str, baudrate: int = 115200, workflow: EMVWorkflow = EMVWorkflow.VISA_MSD_TRACK2):
+        self.port = port
+        self.baudrate = baudrate
+        self.serial = None
+        self.verbose = False
+        self.current_workflow = workflow
+        self.workflow_config = EMV_WORKFLOWS[workflow]
+        self.timeout = 5.0
+
+    def log(self, message: str, level: str = "INFO"):
+        """Enhanced logging with timestamps and levels"""
+        timestamp = time.strftime("%H:%M:%S")
+        if self.verbose or level in ["ERROR", "WARNING"]:
+            print(f"[{timestamp}] {level}: {message}")
+    
+    def switch_workflow(self, workflow: EMVWorkflow):
+        """Switch to a different EMV workflow"""
+        self.current_workflow = workflow
+        self.workflow_config = EMV_WORKFLOWS[workflow]
+        self.log(f"💳 Switched to workflow: {self.workflow_config['name']}", "INFO")
+        self.log(f"🎯 Description: {self.workflow_config['description']}", "INFO")
+        self.log(f"🔧 AIDs: {', '.join(self.workflow_config['aids'])}", "INFO")
+    
+    def list_workflows(self):
+        """Display all available EMV workflows"""
+        self.log("📋 Available EMV Workflows:", "INFO")
+        for i, (workflow, config) in enumerate(EMV_WORKFLOWS.items(), 1):
+            status = "[ACTIVE]" if workflow == self.current_workflow else ""
+            self.log(f"  {i}. {config['name']} {status}", "INFO")
+            self.log(f"     {config['description']}", "INFO")
+            self.log(f"     AIDs: {', '.join(config['aids'])}", "INFO")
+
+    def connect(self) -> bool:
+        """Connect to PN532 over serial port"""
+        try:
+            self.log(f"🔌 Connecting to PN532 on {self.port}...", "INFO")
+            self.serial = serial.Serial(
+                port=self.port,
+                baudrate=self.baudrate,
+                timeout=self.timeout,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+                bytesize=serial.EIGHTBITS
+            )
+            
+            if self.serial.is_open:
+                self.log(f"✅ Connected to PN532 on {self.port}", "INFO")
+                time.sleep(0.5)  # Allow connection to stabilize
+                return True
+            else:
+                self.log(f"❌ Failed to open {self.port}", "ERROR")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ Connection failed: {e}", "ERROR")
+            return False
+
+    def disconnect(self):
+        """Disconnect from PN532"""
+        if self.serial and self.serial.is_open:
+            self.serial.close()
+            self.log("🔌 Disconnected from PN532", "INFO")
+
+    def send_command(self, command: str, description: str = "") -> Optional[bytes]:
+        """Send APDU command to PN532 and return response"""
+        if not self.serial or not self.serial.is_open:
+            self.log("❌ Not connected to PN532", "ERROR")
+            return None
+            
+        try:
+            # Convert hex string to bytes
+            cmd_bytes = binascii.unhexlify(command.replace(" ", ""))
+            
+            self.log(f"📤 Sending {description}: {command}", "DEBUG")
+            
+            # Send command
+            self.serial.write(cmd_bytes)
+            time.sleep(0.1)  # Allow processing time
+            
+            # Read response
+            response = self.serial.read(256)  # Read up to 256 bytes
+            
+            if response:
+                response_hex = binascii.hexlify(response).decode('ascii').upper()
+                # Format for readability (spaces every 2 chars)
+                formatted_response = ' '.join(response_hex[i:i+2] for i in range(0, len(response_hex), 2))
+                self.log(f"📥 Response: {formatted_response}", "INFO")
+                return response
+            else:
+                self.log(f"⚠️ No response received for {description}", "WARNING")
+                return None
+                
+        except Exception as e:
+            self.log(f"❌ Command failed: {e}", "ERROR")
+            return None
+
+    def run_workflow_sequence(self):
+        """Execute the current EMV workflow sequence"""
+        self.log(f"🚀 Starting workflow: {self.workflow_config['name']}", "INFO")
+        self.log(f"🎯 Description: {self.workflow_config['description']}", "INFO")
+        
+        # Standard EMV command sequences based on workflow
+        commands = {
+            "SELECT_PPSE": ("00A404000E325041592E5359532E444446303100", "SELECT PPSE"),
+            "SELECT_AID": (f"00A4040007{self.workflow_config['aids'][0]}00", f"SELECT AID {self.workflow_config['aids'][0]}"),
+            "GPO_TRACK2": ("80A8000023832127000000000000001000000000000000097800000000000978230301003839303100", "GPO with PDOL (Track2)"),
+            "GPO_FULL": ("80A8000023832127000000000000001000000000000000097800000000000978230301003839303100", "GPO with PDOL (Full EMV)"),
+            "GPO_MSD": ("80A8000002830000", "GPO for MSD"),
+            "GPO_CONTACTLESS": ("80A8000008830600000000000000", "GPO Contactless"),
+            "GPO_AMEX": ("80A8000002830000", "GPO AMEX"),
+            "READ_RECORD": ("00B2011400", "READ RECORD SFI 2, Record 1"),
+            "GENERATE_AC": ("80AE4000050000000000", "GENERATE AC")
+        }
+        
+        # Execute command sequence for this workflow
+        for cmd_name in self.workflow_config['commands']:
+            if cmd_name in commands:
+                cmd_hex, description = commands[cmd_name]
+                response = self.send_command(cmd_hex, description)
+                
+                if response:
+                    # Parse response status
+                    if len(response) >= 2:
+                        status = response[-2:]
+                        if status == b'\x90\x00':
+                            self.log(f"✅ {description} - SUCCESS", "INFO")
+                        else:
+                            status_hex = binascii.hexlify(status).decode('ascii').upper()
+                            self.log(f"⚠️ {description} - Status: {status_hex}", "WARNING")
+                else:
+                    self.log(f"❌ {description} - No response", "ERROR")
+                
+                time.sleep(0.2)  # Pause between commands
+
+def simulate_workflow(workflow: EMVWorkflow):
+    """Simulate EMV workflow without hardware"""
+    config = EMV_WORKFLOWS[workflow]
+    print(f"🎭 SIMULATION MODE: {config['name']}")
+    print(f"📋 Description: {config['description']}")
+    print(f"🆔 AIDs: {', '.join(config['aids'])}")
+    print(f"📡 Command Sequence: {' → '.join(config['commands'])}")
+    print("✅ Simulation complete")
+
+def main():
+    parser = argparse.ArgumentParser(description="PN532 EMV Terminal with Multi-Workflow Support")
+    parser.add_argument("--port", "-p", default="/dev/rfcomm1", 
+                       help="Serial port for PN532 (default: /dev/rfcomm1)")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                       help="Enable verbose logging")
+    parser.add_argument("--simulation", action="store_true",
+                       help="Run in simulation mode (no hardware required)")
+    parser.add_argument("--workflow", "-w", choices=[w.value for w in EMVWorkflow],
+                       default=EMVWorkflow.VISA_MSD_TRACK2.value,
+                       help="Select EMV workflow to use")
+    parser.add_argument("--list-workflows", action="store_true",
+                       help="List all available EMV workflows and exit")
+    
+    args = parser.parse_args()
+    
+    # Handle workflow listing
+    if args.list_workflows:
+        temp_terminal = PN532Terminal("/dev/null")  # Dummy terminal for workflow listing
+        temp_terminal.verbose = True
+        temp_terminal.list_workflows()
+        return
+    
+    # Convert workflow string to enum
+    selected_workflow = EMVWorkflow(args.workflow)
+    
+    if args.simulation:
+        print(f"🎭 Running in SIMULATION mode with {EMV_WORKFLOWS[selected_workflow]['name']}")
+        simulate_workflow(selected_workflow)
+        return
+    
+    terminal = PN532Terminal(args.port, workflow=selected_workflow)
+    terminal.verbose = args.verbose
+    
+    try:
+        if terminal.connect():
+            terminal.log(f"🎯 Using workflow: {terminal.workflow_config['name']}", "INFO")
+            terminal.run_workflow_sequence()
+        else:
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("\n💀 Interrupted by user")
+    finally:
+        terminal.disconnect()
+
+if __name__ == "__main__":
+    main()
+
+import serial
+import time
+import sys
+import argparse
+import binascii
+import logging
+from typing import Optional, List, Tuple, Dict
+from enum import Enum
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class EMVWorkflow(Enum):
+    """EMV Workflow Types from emv.html analysis"""
+    VISA_MSD_TRACK2 = "visa_msd_track2"
+    US_DEBIT_FULL = "us_debit_full" 
+    MASTERCARD_MSD = "mastercard_msd"
+    DISCOVER_CONTACTLESS = "discover_contactless"
+    AMEX_EXPRESS_PAY = "amex_express_pay"
+
+# EMV Workflow Configurations
+EMV_WORKFLOWS = {
+    EMVWorkflow.VISA_MSD_TRACK2: {
+        "name": "VISA MSD Track2-from-GPO",
+        "aids": ["A0000000031010", "A0000000980840"],
+        "description": "Standard VISA MSD with Track2 from GPO command",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_TRACK2", "READ_RECORD"]
+    },
+    EMVWorkflow.US_DEBIT_FULL: {
+        "name": "US Common Debit Full EMV",
+        "aids": ["A0000000980840"],
+        "description": "Full EMV processing for US debit cards", 
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_FULL", "READ_RECORD", "GENERATE_AC"]
+    },
+    EMVWorkflow.MASTERCARD_MSD: {
+        "name": "MasterCard MSD",
+        "aids": ["A0000000041010"],
+        "description": "MasterCard Magstripe Downgrade",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_MSD", "READ_RECORD"]
+    },
+    EMVWorkflow.DISCOVER_CONTACTLESS: {
+        "name": "Discover Contactless", 
+        "aids": ["A0000001523010"],
+        "description": "Discover contactless payment flow",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_CONTACTLESS", "READ_RECORD"]
+    },
+    EMVWorkflow.AMEX_EXPRESS_PAY: {
+        "name": "American Express ExpressPay",
+        "aids": ["A00000002501"],
+        "description": "AMEX ExpressPay contactless",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_AMEX", "READ_RECORD"]
+    }
+}
+
+class PN532Terminal:
+    def __init__(self, port: str, baudrate: int = 115200, workflow: EMVWorkflow = EMVWorkflow.VISA_MSD_TRACK2):
+        self.port = port
+        self.baudrate = baudrate
+        self.serial = None
+        self.verbose = False
+        self.current_workflow = workflow
+        self.workflow_config = EMV_WORKFLOWS[workflow]
+        self.timeout = 5.0
+
+    def log(self, message: str, level: str = "INFO"):
+        """Enhanced logging with timestamps and levels"""
+        timestamp = time.strftime("%H:%M:%S")
+        if self.verbose or level in ["ERROR", "WARNING"]:
+            print(f"[{timestamp}] {level}: {message}")
+    
+    def switch_workflow(self, workflow: EMVWorkflow):
+        """Switch to a different EMV workflow"""
+        self.current_workflow = workflow
+        self.workflow_config = EMV_WORKFLOWS[workflow]
+        self.log(f"💳 Switched to workflow: {self.workflow_config['name']}", "INFO")
+        self.log(f"🎯 Description: {self.workflow_config['description']}", "INFO")
+        self.log(f"🔧 AIDs: {', '.join(self.workflow_config['aids'])}", "INFO")
+    
+    def list_workflows(self):
+        """Display all available EMV workflows"""
+        self.log("📋 Available EMV Workflows:", "INFO")
+        for i, (workflow, config) in enumerate(EMV_WORKFLOWS.items(), 1):
+            status = "[ACTIVE]" if workflow == self.current_workflow else ""
+            self.log(f"  {i}. {config['name']} {status}", "INFO")
+            self.log(f"     {config['description']}", "INFO")
+            self.log(f"     AIDs: {', '.join(config['aids'])}", "INFO")
+
+    def connect(self) -> bool:
+        """Connect to PN532 over serial port"""
+        try:
+            self.log(f"🔌 Connecting to PN532 on {self.port}...", "INFO")
+            self.serial = serial.Serial(
+                port=self.port,
+                baudrate=self.baudrate,
+                timeout=self.timeout,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+                bytesize=serial.EIGHTBITS
+            )
+            
+            if self.serial.is_open:
+                self.log(f"✅ Connected to PN532 on {self.port}", "INFO")
+                time.sleep(0.5)  # Allow connection to stabilize
+                return True
+            else:
+                self.log(f"❌ Failed to open {self.port}", "ERROR")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ Connection failed: {e}", "ERROR")
+            return False
+
+    def disconnect(self):
+        """Disconnect from PN532"""
+        if self.serial and self.serial.is_open:
+            self.serial.close()
+            self.log("🔌 Disconnected from PN532", "INFO")
+
+    def send_command(self, command: str, description: str = "") -> Optional[bytes]:
+        """Send APDU command to PN532 and return response"""
+        if not self.serial or not self.serial.is_open:
+            self.log("❌ Not connected to PN532", "ERROR")
+            return None
+            
+        try:
+            # Convert hex string to bytes
+            cmd_bytes = binascii.unhexlify(command.replace(" ", ""))
+            
+            self.log(f"📤 Sending {description}: {command}", "DEBUG")
+            
+            # Send command
+            self.serial.write(cmd_bytes)
+            time.sleep(0.1)  # Allow processing time
+            
+            # Read response
+            response = self.serial.read(256)  # Read up to 256 bytes
+            
+            if response:
+                response_hex = binascii.hexlify(response).decode('ascii').upper()
+                # Format for readability (spaces every 2 chars)
+                formatted_response = ' '.join(response_hex[i:i+2] for i in range(0, len(response_hex), 2))
+                self.log(f"📥 Response: {formatted_response}", "INFO")
+                return response
+            else:
+                self.log(f"⚠️ No response received for {description}", "WARNING")
+                return None
+                
+        except Exception as e:
+            self.log(f"❌ Command failed: {e}", "ERROR")
+            return None
+
+    def run_workflow_sequence(self):
+        """Execute the current EMV workflow sequence"""
+        self.log(f"🚀 Starting workflow: {self.workflow_config['name']}", "INFO")
+        self.log(f"🎯 Description: {self.workflow_config['description']}", "INFO")
+        
+        # Standard EMV command sequences based on workflow
+        commands = {
+            "SELECT_PPSE": ("00A404000E325041592E5359532E444446303100", "SELECT PPSE"),
+            "SELECT_AID": (f"00A4040007{self.workflow_config['aids'][0]}00", f"SELECT AID {self.workflow_config['aids'][0]}"),
+            "GPO_TRACK2": ("80A8000023832127000000000000001000000000000000097800000000000978230301003839303100", "GPO with PDOL (Track2)"),
+            "GPO_FULL": ("80A8000023832127000000000000001000000000000000097800000000000978230301003839303100", "GPO with PDOL (Full EMV)"),
+            "GPO_MSD": ("80A8000002830000", "GPO for MSD"),
+            "GPO_CONTACTLESS": ("80A8000008830600000000000000", "GPO Contactless"),
+            "GPO_AMEX": ("80A8000002830000", "GPO AMEX"),
+            "READ_RECORD": ("00B2011400", "READ RECORD SFI 2, Record 1"),
+            "GENERATE_AC": ("80AE4000050000000000", "GENERATE AC")
+        }
+        
+        # Execute command sequence for this workflow
+        for cmd_name in self.workflow_config['commands']:
+            if cmd_name in commands:
+                cmd_hex, description = commands[cmd_name]
+                response = self.send_command(cmd_hex, description)
+                
+                if response:
+                    # Parse response status
+                    if len(response) >= 2:
+                        status = response[-2:]
+                        if status == b'\x90\x00':
+                            self.log(f"✅ {description} - SUCCESS", "INFO")
+                        else:
+                            status_hex = binascii.hexlify(status).decode('ascii').upper()
+                            self.log(f"⚠️ {description} - Status: {status_hex}", "WARNING")
+                else:
+                    self.log(f"❌ {description} - No response", "ERROR")
+                
+                time.sleep(0.2)  # Pause between commands
+
+def simulate_workflow(workflow: EMVWorkflow):
+    """Simulate EMV workflow without hardware"""
+    config = EMV_WORKFLOWS[workflow]
+    print(f"🎭 SIMULATION MODE: {config['name']}")
+    print(f"📋 Description: {config['description']}")
+    print(f"🆔 AIDs: {', '.join(config['aids'])}")
+    print(f"📡 Command Sequence: {' → '.join(config['commands'])}")
+    print("✅ Simulation complete")
+
+def main():
+    parser = argparse.ArgumentParser(description="PN532 EMV Terminal with Multi-Workflow Support")
+    parser.add_argument("--port", "-p", default="/dev/rfcomm1", 
+                       help="Serial port for PN532 (default: /dev/rfcomm1)")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                       help="Enable verbose logging")
+    parser.add_argument("--simulation", action="store_true",
+                       help="Run in simulation mode (no hardware required)")
+    parser.add_argument("--workflow", "-w", choices=[w.value for w in EMVWorkflow],
+                       default=EMVWorkflow.VISA_MSD_TRACK2.value,
+                       help="Select EMV workflow to use")
+    parser.add_argument("--list-workflows", action="store_true",
+                       help="List all available EMV workflows and exit")
+    
+    args = parser.parse_args()
+    
+    # Handle workflow listing
+    if args.list_workflows:
+        temp_terminal = PN532Terminal("/dev/null")  # Dummy terminal for workflow listing
+        temp_terminal.verbose = True
+        temp_terminal.list_workflows()
+        return
+    
+    # Convert workflow string to enum
+    selected_workflow = EMVWorkflow(args.workflow)
+    
+    if args.simulation:
+        print(f"🎭 Running in SIMULATION mode with {EMV_WORKFLOWS[selected_workflow]['name']}")
+        simulate_workflow(selected_workflow)
+        return
+    
+    terminal = PN532Terminal(args.port, workflow=selected_workflow)
+    terminal.verbose = args.verbose
+    
+    try:
+        if terminal.connect():
+            terminal.log(f"🎯 Using workflow: {terminal.workflow_config['name']}", "INFO")
+            terminal.run_workflow_sequence()
+        else:
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("\n💀 Interrupted by user")
+    finally:
+        terminal.disconnect()
+
+if __name__ == "__main__":
+    main()
+
+import serial
+import time
+import sys
+import argparse
+import binascii
+from typing import Optional, List, Tuple, Dict
+from enum import Enum
 
 # Try to import pyserial, fall back to simulation mode if not available
 try:
@@ -45,7 +543,42 @@ class PN532Terminal:
         'WRONG_LENGTH': b'\x67\x00'
     }
     
-    def __init__(self, port: str, baudrate: int = 115200, timeout: float = 2.0):
+    # EMV Workflow Configurations
+EMV_WORKFLOWS = {
+    EMVWorkflow.VISA_MSD_TRACK2: {
+        "name": "VISA MSD Track2-from-GPO",
+        "aids": ["A0000000031010", "A0000000980840"],
+        "description": "Standard VISA MSD with Track2 from GPO command",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_TRACK2", "READ_RECORD"]
+    },
+    EMVWorkflow.US_DEBIT_FULL: {
+        "name": "US Common Debit Full EMV",
+        "aids": ["A0000000980840"],
+        "description": "Full EMV processing for US debit cards",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_FULL", "READ_RECORD", "GENERATE_AC"]
+    },
+    EMVWorkflow.MASTERCARD_MSD: {
+        "name": "MasterCard MSD",
+        "aids": ["A0000000041010"],
+        "description": "MasterCard Magstripe Downgrade",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_MSD", "READ_RECORD"]
+    },
+    EMVWorkflow.DISCOVER_CONTACTLESS: {
+        "name": "Discover Contactless",
+        "aids": ["A0000001523010"],
+        "description": "Discover contactless payment flow",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_CONTACTLESS", "READ_RECORD"]
+    },
+    EMVWorkflow.AMEX_EXPRESS_PAY: {
+        "name": "American Express ExpressPay",
+        "aids": ["A00000002501"],
+        "description": "AMEX ExpressPay contactless",
+        "commands": ["SELECT_PPSE", "SELECT_AID", "GPO_AMEX", "READ_RECORD"]
+    }
+}
+
+class PN532Terminal:
+    def __init__(self, port: str, baudrate: int = 115200, workflow: EMVWorkflow = EMVWorkflow.VISA_MSD_TRACK2):
         """
         Initialize PN532 terminal connection.
         
@@ -56,7 +589,7 @@ class PN532Terminal:
         """
         self.port = port
         self.baudrate = baudrate
-        self.timeout = timeout
+        self.timeout = 5.0
         self.connection: Optional[serial.Serial] = None
         self.test_results: List[Dict] = []
         
