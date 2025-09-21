@@ -7,12 +7,23 @@ import timber.log.Timber
 
 class EnhancedHceService : HostApduService() {
     
-    // Direct access to test data - no complex routing
-    private val testCardData = VisaTestMsdData()
+    // Direct access to APDU flow hooks with workflow support
+    private val apduHooks = ApduFlowHooks(this)
     
     override fun onCreate() {
         super.onCreate()
-        Timber.d("EnhancedHceService created - Rapid EMV mode")
+        // Default to MSD-Only workflow
+        apduHooks.setEmvWorkflow(1)
+        Timber.d("EnhancedHceService created - EMV Workflow System enabled")
+    }
+    
+    /**
+     * Switch EMV workflow emulation style
+     * @param workflowId: 1=MSD-Only, 2=Force Offline TC, 3=Online Auth, 4=Contactless, 5=Full EMV
+     */
+    fun switchWorkflow(workflowId: Int) {
+        apduHooks.setEmvWorkflow(workflowId)
+        Log.i(TAG, "EMV Workflow switched to ID: $workflowId")
     }
     
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
@@ -40,50 +51,12 @@ class EnhancedHceService : HostApduService() {
     }
     
     /**
-     * Direct APDU command processing for rapid EMV workflow
-     * Based on reference implementation pattern - no delays, immediate response
+     * Direct APDU command processing using workflow-aware hooks
+     * Each workflow emulates different EMV behavior patterns
      */
     private fun processCommandDirect(commandApdu: ByteArray): ByteArray {
-        val hexCommand = commandApdu.toHexString().uppercase()
-        
-        return when {
-            // SELECT PPSE (00A404000E325041592E5359532E4444463031)
-            hexCommand.contains("325041592E5359532E4444463031") -> {
-                Log.d(TAG, "SELECT PPSE - Immediate response")
-                testCardData.getPpseResponse()
-            }
-            
-            // SELECT VISA AID (A0000000031010)
-            hexCommand.contains("A0000000031010") -> {
-                Log.d(TAG, "SELECT VISA AID - Immediate response")
-                testCardData.getVisaMsdAidResponse()
-            }
-            
-            // SELECT US Debit AID (A0000000980840)
-            hexCommand.contains("A0000000980840") -> {
-                Log.i(TAG, "SELECT US DEBIT AID - Immediate response")
-                testCardData.getUsDebitAidResponse()
-            }
-            
-            // GPO (Get Processing Options)
-            commandApdu.size >= 2 && commandApdu[0] == 0x80.toByte() && commandApdu[1] == 0xA8.toByte() -> {
-                Log.i(TAG, "GPO - Immediate response")
-                testCardData.getGpoResponse()
-            }
-            
-            // READ RECORD
-            commandApdu.size >= 4 && commandApdu[0] == 0x00.toByte() && commandApdu[1] == 0xB2.toByte() -> {
-                val record = commandApdu[2].toInt() and 0xFF
-                val sfi = (commandApdu[3].toInt() and 0xF8) shr 3
-                Log.i(TAG, "READ RECORD SFI=$sfi Record=$record - Immediate response")
-                testCardData.getReadRecordResponse(sfi, record)
-            }
-            
-            else -> {
-                Log.w(TAG, "Unknown command: $hexCommand")
-                RESPONSE_UNKNOWN_COMMAND
-            }
-        }
+        // Use workflow-aware APDU processing
+        return apduHooks.processCommand(commandApdu)
     }
     
     

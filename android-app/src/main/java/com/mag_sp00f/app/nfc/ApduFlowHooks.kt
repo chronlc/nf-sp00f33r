@@ -20,6 +20,18 @@ class ApduFlowHooks(private val context: Context) {
     // VISA TEST MSD reference data from emv.html
     private val testCardData = VisaTestMsdData()
     
+    // EMV Workflow Manager for different emulation styles
+    private val workflowManager = EmvWorkflowManager(testCardData)
+    
+    /**
+     * Set the EMV workflow emulation style
+     * @param workflowId: 1=MSD-Only, 2=Force Offline TC, 3=Online Auth, 4=Contactless, 5=Full EMV
+     */
+    fun setEmvWorkflow(workflowId: Int) {
+        workflowManager.setWorkflow(workflowId)
+        Timber.d("EMV Workflow changed to: ${workflowManager.getCurrentWorkflow().description}")
+    }
+    
     fun processCommand(commandApdu: ByteArray): ByteArray {
         val command = commandApdu.toHexString()
         
@@ -118,16 +130,14 @@ class ApduFlowHooks(private val context: Context) {
     }
     
     fun handleSelectAid(aid: String): ByteArray {
-        return when (aid.uppercase()) {
-            "A0000000031010" -> testCardData.getVisaMsdAidResponse()
-            "A0000000980840" -> testCardData.getUsDebitAidResponse()
-            else -> byteArrayOf(0x6A.toByte(), 0x82.toByte()) // File not found
-        }
+        Timber.d("SELECT AID: $aid using workflow: ${workflowManager.getCurrentWorkflow().description}")
+        return workflowManager.getWorkflowAidResponse(aid)
     }
     
     private fun handleGetProcessingOptions(command: ByteArray): ByteArray {
-        // Extract PDOL data and return GPO response
-        return testCardData.getGpoResponse()
+        Timber.d("GPO: Using workflow: ${workflowManager.getCurrentWorkflow().description}")
+        // Extract PDOL data and return workflow-specific GPO response
+        return workflowManager.getWorkflowGpoResponse()
     }
     
     fun handleReadRecord(sfi: Int, record: Int): ByteArray {
