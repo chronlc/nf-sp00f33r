@@ -35,17 +35,20 @@
 4. **Response validation** - Proper error code handling
 5. **Multi-workflow support** - 5 EMV workflows implemented
 
-### ❌ CURRENT ISSUE - PROGRESS UPDATE:
-- **Card connection lost after first APDU** - NOW IDENTIFIED: Connection drops after first successful APDU exchange
-- **Target tracking implemented** - System now detects when card connection is lost
-- **Root cause**: Android HCE or PN532 losing contactless connection after initial exchange
-- **Next step**: Implement re-detection between APDUs or investigate HCE timeout settings
+### ✅ MAJOR PROGRESS UPDATE (2025-09-20 21:05):
+- ✅ **SELECT AID**: **REAL VISA DATA** working consistently (6F4F8407A0000000031010A544...)
+- ✅ **GPO**: **REAL EMV RESPONSE** working consistently with Track2 (4154904674973556D29022...)
+- ✅ **Re-detection between APDUs**: Working - system successfully re-establishes connection
+- ❌ **READ RECORD**: Connection lost consistently - likely HCE service not handling this command
 
-### ✅ WORKFLOW STATUS UPDATE (2025-09-20 20:41):
-- ✅ **SELECT PPSE**: 6A82 (Android NFC routing issue - not delivered to HCE)
-- ✅ **SELECT AID**: **REAL VISA DATA** (6F4F8407A0000000031010A544...)  
-- ✅ **GPO**: **REAL EMV RESPONSE** with Track2 (4154904674973556D29022...) and cardholder name
-- ✅ **Connection stability**: Fixed with 1.0 second timing (was 0.5)
+### 🔍 ANDROID HCE ROUTING ANALYSIS:
+- ❌ **SELECT PPSE**: Android NFC not routing to HCE service (common limitation)
+- ✅ **SELECT AID**: Successfully routed to HCE service, processed by handleSelectCommand()  
+- ✅ **GPO**: Successfully routed to HCE service, processed by ApduFlowHooks
+- ❌ **READ RECORD**: Not reaching HCE service (logs show no RX APDU for READ RECORD)
+
+### 🎯 **ROOT CAUSE IDENTIFIED**: 
+READ RECORD commands not reaching Android HCE service - need to implement READ RECORD handler in ApduFlowHooks
 
 ### 🔍 **IMPORTANT EMV DISCOVERY**:
 - **We're bypassing PPSE** by hardcoding known AIDs (A0000000031010)

@@ -25,11 +25,20 @@ class EnhancedHceService : HostApduService() {
             val hexCommand = commandApdu.toHexString()
             Log.d(TAG, "RX APDU: $hexCommand")
             
-            // Handle SELECT commands manually (INS = 0xA4)
-            val response = if (commandApdu.size >= 4 && (commandApdu[1].toInt() and 0xFF) == 0xA4) {
-                handleSelectCommand(commandApdu)
-            } else {
-                apduFlowHooks.processCommand(commandApdu)
+            // Handle SELECT commands manually (INS = 0xA4) and READ RECORD (INS = 0xB2)
+            val response = when {
+                commandApdu.size >= 4 && (commandApdu[1].toInt() and 0xFF) == 0xA4 -> {
+                    Log.d(TAG, "Processing SELECT command manually")
+                    handleSelectCommand(commandApdu)
+                }
+                commandApdu.size >= 4 && (commandApdu[1].toInt() and 0xFF) == 0xB2 -> {
+                    Log.d(TAG, "Processing READ RECORD command")
+                    handleReadRecordCommand(commandApdu)
+                }
+                else -> {
+                    Log.d(TAG, "Processing command via ApduFlowHooks")
+                    apduFlowHooks.processCommand(commandApdu)
+                }
             }
             
             val hexResponse = response.toHexString()
@@ -77,6 +86,27 @@ class EnhancedHceService : HostApduService() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error handling SELECT command", e)
+            RESPONSE_UNKNOWN_COMMAND
+        }
+    }
+    
+    private fun handleReadRecordCommand(commandApdu: ByteArray): ByteArray {
+        return try {
+            if (commandApdu.size < 4) {
+                Log.w(TAG, "READ RECORD command too short")
+                return RESPONSE_UNKNOWN_COMMAND
+            }
+            
+            val record = commandApdu[2].toInt() and 0xFF
+            val sfi = (commandApdu[3].toInt() and 0xF8) shr 3
+            
+            Log.d(TAG, "READ RECORD Command - SFI: $sfi, Record: $record")
+            
+            // Forward to ApduFlowHooks for actual processing
+            apduFlowHooks.handleReadRecord(sfi, record)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling READ RECORD command", e)
             RESPONSE_UNKNOWN_COMMAND
         }
     }

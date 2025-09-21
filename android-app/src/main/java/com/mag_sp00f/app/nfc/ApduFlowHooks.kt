@@ -130,7 +130,7 @@ class ApduFlowHooks(private val context: Context) {
         return testCardData.getGpoResponse()
     }
     
-    private fun handleReadRecord(sfi: Int, record: Int): ByteArray {
+    fun handleReadRecord(sfi: Int, record: Int): ByteArray {
         return testCardData.getReadRecordResponse(sfi, record)
     }
     
