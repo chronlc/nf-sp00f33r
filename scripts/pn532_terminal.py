@@ -158,23 +158,10 @@ class PN532Terminal:
             
             # Send command
             self.ser.write(frame)
-            time.sleep(0.5)
+            time.sleep(1.0)  # Critical timing: match working script (was 0.5)
             
-            # Read response with extended timeout for complex APDUs
-            response = b''
-            start_time = time.time()
-            
-            while time.time() - start_time < 3.0:  # Extended timeout
-                if self.ser.in_waiting:
-                    chunk = self.ser.read(self.ser.in_waiting)
-                    response += chunk
-                    time.sleep(0.1)  # Longer pause between reads
-                else:
-                    time.sleep(0.2)  # Longer wait for more data
-                
-                # Stop if we have a complete frame (basic check)
-                if len(response) >= 6 and response[-2:] == b'\x00\x00':
-                    break
+            # Read response with proper timing for EMV
+            response = self.ser.read(300)  # Match working script buffer size
             if response:
                 response_hex = response.hex().upper()
                 logger.info("[REAL-RX] Raw response: %s", response_hex)
@@ -342,7 +329,7 @@ class PN532Terminal:
             else:
                 logger.error("[REAL-FAILED] %s - No response", description)
             
-            time.sleep(0.2)
+            time.sleep(1.0)  # EMV timing: proper delay between commands
         
         workflow_success = success_count >= (total_commands // 2)
         

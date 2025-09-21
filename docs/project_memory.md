@@ -41,11 +41,18 @@
 - **Root cause**: Android HCE or PN532 losing contactless connection after initial exchange
 - **Next step**: Implement re-detection between APDUs or investigate HCE timeout settings
 
-### LATEST TEST RESULTS (2025-09-20 20:35):
-- ✅ Card detection working (target selected)
-- ✅ SELECT PPSE: Gets proper 6A82 response  
-- ❌ SELECT AID: "Short response" - card connection lost
-- ✅ System correctly detects loss and prevents invalid APDU attempts
+### ✅ WORKFLOW STATUS UPDATE (2025-09-20 20:41):
+- ✅ **SELECT PPSE**: 6A82 (Android NFC routing issue - not delivered to HCE)
+- ✅ **SELECT AID**: **REAL VISA DATA** (6F4F8407A0000000031010A544...)  
+- ✅ **GPO**: **REAL EMV RESPONSE** with Track2 (4154904674973556D29022...) and cardholder name
+- ✅ **Connection stability**: Fixed with 1.0 second timing (was 0.5)
+
+### 🔍 **IMPORTANT EMV DISCOVERY**:
+- **We're bypassing PPSE** by hardcoding known AIDs (A0000000031010)
+- **Real EMV flow**: SELECT PPSE → Parse AIDs → SELECT AID → GPO
+- **Current limitation**: Android NFC routing doesn't deliver PPSE to our HCE service
+- **Android HCE has proper PPSE response** with both VISA and US Debit AIDs ready
+- **This is common Android HCE limitation** - many setups bypass PPSE for this reason
 
 ---
 

@@ -112,12 +112,12 @@ class ApduFlowHooks(private val context: Context) {
         return if (command.size > 2) command[2].toInt() and 0xFF else 0
     }
     
-    private fun handleSelectPpse(): ByteArray {
+    fun handleSelectPpse(): ByteArray {
         // Return VISA TEST PPSE response from emv.html
         return testCardData.getPpseResponse()
     }
     
-    private fun handleSelectAid(aid: String): ByteArray {
+    fun handleSelectAid(aid: String): ByteArray {
         return when (aid.uppercase()) {
             "A0000000031010" -> testCardData.getVisaMsdAidResponse()
             "A0000000980840" -> testCardData.getUsDebitAidResponse()

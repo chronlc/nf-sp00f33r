@@ -1,0 +1,6 @@
+backup_points: {}
+batches: {}
+daily_backups:
+- date: '20250920'
+  location: /home/user/DEVCoDE/mag-sp00f_v1/--create/.backups/daily/20250920
+last_daily_backup: '2025-09-20T19:42:30.997059'

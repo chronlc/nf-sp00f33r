@@ -3,14 +3,31 @@
     android:description="@string/hce_service_description"
     android:requireDeviceUnlock="false">
 
-    <!-- Combined Payment AIDs (PPSE + VISA + US Debit) -->
+    <!-- Enhanced Payment AIDs with PPSE routing fix -->
     <aid-group
         android:category="payment"
         android:description="@string/hce_service_description">
+        <!-- PPSE AIDs - Contactless and Contact -->
         <aid-filter android:name="325041592E5359532E4444463031" />
         <aid-filter android:name="315041592E5359532E4444463031" />
+        <!-- VISA MSD AID -->
         <aid-filter android:name="A0000000031010" />
+        <!-- US Debit AID -->
         <aid-filter android:name="A0000000980840" />
+        <!-- MasterCard MSD AID -->
+        <aid-filter android:name="A0000000041010" />
+        <!-- Discover Contactless AID -->
+        <aid-filter android:name="A0000001523010" />
+        <!-- AMEX ExpressPay AID -->
+        <aid-filter android:name="A0000000250100" />
+    </aid-group>
+
+    <!-- Additional group for PPSE with different category approach -->
+    <aid-group
+        android:category="other"
+        android:description="@string/hce_service_description">
+        <aid-filter android:name="325041592E5359532E4444463031" />
+        <aid-filter android:name="315041592E5359532E4444463031" />
     </aid-group>
 
 </host-apdu-service>
