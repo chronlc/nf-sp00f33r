@@ -7,12 +7,12 @@ import timber.log.Timber
 
 class EnhancedHceService : HostApduService() {
     
-    private lateinit var apduFlowHooks: ApduFlowHooks
+    // Direct access to test data - no complex routing
+    private val testCardData = VisaTestMsdData()
     
     override fun onCreate() {
         super.onCreate()
-        apduFlowHooks = ApduFlowHooks(this)
-        Timber.d("EnhancedHceService created")
+        Timber.d("EnhancedHceService created - Rapid EMV mode")
     }
     
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
@@ -25,21 +25,8 @@ class EnhancedHceService : HostApduService() {
             val hexCommand = commandApdu.toHexString()
             Log.d(TAG, "RX APDU: $hexCommand")
             
-            // Handle SELECT commands manually (INS = 0xA4) and READ RECORD (INS = 0xB2)
-            val response = when {
-                commandApdu.size >= 4 && (commandApdu[1].toInt() and 0xFF) == 0xA4 -> {
-                    Log.d(TAG, "Processing SELECT command manually")
-                    handleSelectCommand(commandApdu)
-                }
-                commandApdu.size >= 4 && (commandApdu[1].toInt() and 0xFF) == 0xB2 -> {
-                    Log.d(TAG, "Processing READ RECORD command")
-                    handleReadRecordCommand(commandApdu)
-                }
-                else -> {
-                    Log.d(TAG, "Processing command via ApduFlowHooks")
-                    apduFlowHooks.processCommand(commandApdu)
-                }
-            }
+            // RAPID EMV RESPONSE - Direct processing without delays
+            val response = processCommandDirect(commandApdu)
             
             val hexResponse = response.toHexString()
             Log.d(TAG, "TX APDU: $hexResponse")
@@ -52,64 +39,53 @@ class EnhancedHceService : HostApduService() {
         }
     }
     
-    private fun handleSelectCommand(commandApdu: ByteArray): ByteArray {
-        return try {
-            if (commandApdu.size < 5) {
-                Log.w(TAG, "SELECT command too short")
-                return RESPONSE_UNKNOWN_COMMAND
+    /**
+     * Direct APDU command processing for rapid EMV workflow
+     * Based on reference implementation pattern - no delays, immediate response
+     */
+    private fun processCommandDirect(commandApdu: ByteArray): ByteArray {
+        val hexCommand = commandApdu.toHexString().uppercase()
+        
+        return when {
+            // SELECT PPSE (00A404000E325041592E5359532E4444463031)
+            hexCommand.contains("325041592E5359532E4444463031") -> {
+                Log.d(TAG, "SELECT PPSE - Immediate response")
+                testCardData.getPpseResponse()
             }
             
-            val lc = commandApdu[4].toInt() and 0xFF
-            if (commandApdu.size < 5 + lc) {
-                Log.w(TAG, "SELECT command AID data incomplete")
-                return RESPONSE_UNKNOWN_COMMAND
+            // SELECT VISA AID (A0000000031010)
+            hexCommand.contains("A0000000031010") -> {
+                Log.d(TAG, "SELECT VISA AID - Immediate response")
+                testCardData.getVisaMsdAidResponse()
             }
             
-            val aidBytes = commandApdu.copyOfRange(5, 5 + lc)
-            val aidHex = aidBytes.toHexString().uppercase()
-            
-            Log.d(TAG, "SELECT Command - AID: $aidHex")
-            
-            when (aidHex) {
-                "325041592E5359532E4444463031" -> {
-                    Log.i(TAG, "SELECT PPSE CONTACTLESS")
-                    apduFlowHooks.handleSelectPpse()
-                }
-                "A0000000031010" -> {
-                    Log.i(TAG, "SELECT VISA MSD AID")
-                    apduFlowHooks.handleSelectAid(aidHex)
-                }
-                else -> {
-                    Log.w(TAG, "SELECT unknown AID: $aidHex")
-                    RESPONSE_FILE_NOT_FOUND
-                }
+            // SELECT US Debit AID (A0000000980840)
+            hexCommand.contains("A0000000980840") -> {
+                Log.i(TAG, "SELECT US DEBIT AID - Immediate response")
+                testCardData.getUsDebitAidResponse()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error handling SELECT command", e)
-            RESPONSE_UNKNOWN_COMMAND
+            
+            // GPO (Get Processing Options)
+            commandApdu.size >= 2 && commandApdu[0] == 0x80.toByte() && commandApdu[1] == 0xA8.toByte() -> {
+                Log.i(TAG, "GPO - Immediate response")
+                testCardData.getGpoResponse()
+            }
+            
+            // READ RECORD
+            commandApdu.size >= 4 && commandApdu[0] == 0x00.toByte() && commandApdu[1] == 0xB2.toByte() -> {
+                val record = commandApdu[2].toInt() and 0xFF
+                val sfi = (commandApdu[3].toInt() and 0xF8) shr 3
+                Log.i(TAG, "READ RECORD SFI=$sfi Record=$record - Immediate response")
+                testCardData.getReadRecordResponse(sfi, record)
+            }
+            
+            else -> {
+                Log.w(TAG, "Unknown command: $hexCommand")
+                RESPONSE_UNKNOWN_COMMAND
+            }
         }
     }
     
-    private fun handleReadRecordCommand(commandApdu: ByteArray): ByteArray {
-        return try {
-            if (commandApdu.size < 4) {
-                Log.w(TAG, "READ RECORD command too short")
-                return RESPONSE_UNKNOWN_COMMAND
-            }
-            
-            val record = commandApdu[2].toInt() and 0xFF
-            val sfi = (commandApdu[3].toInt() and 0xF8) shr 3
-            
-            Log.d(TAG, "READ RECORD Command - SFI: $sfi, Record: $record")
-            
-            // Forward to ApduFlowHooks for actual processing
-            apduFlowHooks.handleReadRecord(sfi, record)
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error handling READ RECORD command", e)
-            RESPONSE_UNKNOWN_COMMAND
-        }
-    }
     
     override fun onDeactivated(reason: Int) {
         val reasonText = when (reason) {

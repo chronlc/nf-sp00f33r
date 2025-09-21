@@ -156,12 +156,10 @@ class PN532Terminal:
             
             logger.info("[REAL-TX] %s: %s", description or "APDU", apdu_hex)
             
-            # Send command
+            # Send command - RFIDIOt style instant response
             self.ser.write(frame)
-            time.sleep(1.0)  # Critical timing: match working script (was 0.5)
-            
-            # Read response with proper timing for EMV
-            response = self.ser.read(300)  # Match working script buffer size
+            # ZERO DELAY - Ultra-fast EMV like RFIDIOt
+            response = self.ser.read_all()  # Immediate read
             if response:
                 response_hex = response.hex().upper()
                 logger.info("[REAL-RX] Raw response: %s", response_hex)
@@ -200,38 +198,34 @@ class PN532Terminal:
             return None
     
     def initialize_reader(self) -> bool:
-        """Initialize REAL PN532 hardware for contactless communication"""
-        logger.info("REAL HARDWARE: Initializing PN532 reader...")
+        """Initialize PN532 with RFIDIOt ultra-fast approach"""
+        logger.info("REAL HARDWARE: Ultra-fast PN532 initialization...")
         
         try:
-            # Reset buffers
+            # Reset buffers instantly
             if self.ser.in_waiting:
                 self.ser.reset_input_buffer()
             self.ser.reset_output_buffer()
-            time.sleep(0.5)
             
-            # Wake up command (proven working sequence from pn532_emv_flow.py)
+            # Wake up - RFIDIOt instant style  
             wake_cmd = b'\x55\x55\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
             self.ser.write(wake_cmd)
-            time.sleep(0.5)
             
-            # Get version
+            # Get version - instant
             version_cmd = b'\x00\x00\xFF\x02\xFE\xD4\x02\x2A\x00'
             self.ser.write(version_cmd)
-            time.sleep(0.5)
-            response = self.ser.read(20)
+            response = self.ser.read_all()  # Instant read
             logger.info("REAL HARDWARE: Version response: %s", response.hex() if response else 'None')
             
-            # Configure SAM
+            # Configure SAM - instant
             sam_cmd = b'\x00\x00\xFF\x04\xFC\xD4\x14\x01\x17\x00'
             self.ser.write(sam_cmd)
-            time.sleep(0.2)
-            response = self.ser.read(10)
+            self.ser.read_all()  # Clear instantly
             
-            # Enable RF field
+            # Enable RF field - instant
             rf_cmd = b'\x00\x00\xFF\x04\xFC\xD4\x32\x01\x01\x00\xE0\x00'
             self.ser.write(rf_cmd)
-            time.sleep(0.2)
+            time.sleep(0.05)  # RAPID: 50ms RF enable
             response = self.ser.read(10)
             
             logger.info("REAL HARDWARE: PN532 reader initialized successfully!")
@@ -245,13 +239,13 @@ class PN532Terminal:
         """Detect and select contactless card"""
         logger.info("REAL HARDWARE: Detecting contactless card...")
         
-        for attempt in range(10):
-            logger.info("REAL HARDWARE: Detection attempt %d/10 - Hold phone on PN532!", attempt + 1)
+        for attempt in range(5):
+            logger.info("REAL HARDWARE: Detection attempt %d/5 - Hold phone on PN532!", attempt + 1)
             
             # Use the working detection command
             detect_cmd = b'\x00\x00\xFF\x04\xFC\xD4\x4A\x01\x00\xE1\x00'
             self.ser.write(detect_cmd)
-            time.sleep(0.5)
+            time.sleep(0.1)  # RAPID: 100ms detection
             response = self.ser.read(50)
             
             if response and len(response) >= 8:
@@ -277,18 +271,18 @@ class PN532Terminal:
             
             time.sleep(0.5)
         
-        logger.error("REAL HARDWARE: Failed to detect contactless card after 10 attempts")
+        logger.error("REAL HARDWARE: Failed to detect contactless card after 5 attempts")
         return False
     
     def execute_workflow(self, workflow_id: int) -> bool:
-        """Execute specified EMV workflow on REAL hardware"""
+        """Execute rapid EMV workflow with PPSE parsing"""
         if workflow_id not in self.WORKFLOWS:
             logger.error("Invalid workflow ID: %d", workflow_id)
             return False
         
         workflow = self.WORKFLOWS[workflow_id]
         logger.info("=" * 70)
-        logger.info("REAL HARDWARE: EXECUTING WORKFLOW %d: %s", workflow_id, workflow['name'])
+        logger.info("REAL HARDWARE: RAPID EMV WORKFLOW %d: %s", workflow_id, workflow['name'])
         logger.info("REAL HARDWARE: AID: %s", workflow['aid'])
         logger.info("REAL HARDWARE: Description: %s", workflow['description'])
         logger.info("=" * 70)
@@ -299,35 +293,88 @@ class PN532Terminal:
         
         logger.info("REAL HARDWARE: PLACE ANDROID HCE DEVICE ON PN532 READER...")
         
-        # Detect and select target before sending APDUs
         if not self.detect_card():
             logger.error("REAL HARDWARE: Card detection failed")
             return False
         
-        success_count = 0
-        total_commands = len(workflow['commands'])
+        # RAPID EMV: Execute all commands in quick succession
+        return self.execute_rapid_emv()
+    
+    def execute_rapid_emv(self) -> bool:
+        """Execute rapid EMV transaction with PPSE parsing"""
+        logger.info("REAL HARDWARE: Starting RAPID EMV transaction...")
         
-        for i, (command, description) in enumerate(workflow['commands'], 1):
-            logger.info("REAL HARDWARE: Command %d/%d: %s", i, total_commands, description)
+        # Step 1: SELECT PPSE (rapid)
+        ppse_response = self.send_apdu("00a404000e325041592e5359532e444446303100", "SELECT PPSE")
+        if not ppse_response or not ppse_response.endswith('9000'):
+            logger.error("RAPID EMV: PPSE failed - %s", ppse_response or "No response")
+            return False
+        
+        logger.info("[RAPID-SUCCESS] SELECT PPSE")
+        
+        # Step 2: Parse PPSE to extract AIDs
+        aids = self.parse_ppse_response(ppse_response)
+        if not aids:
+            logger.error("RAPID EMV: No AIDs found in PPSE response")
+            return False
+        
+        logger.info("RAPID EMV: Found %d AIDs: %s", len(aids), aids)
+        
+        # Step 3: SELECT first AID (rapid)
+        selected_aid = aids[0]  # Use first AID found
+        aid_response = self.send_apdu(f"00a4040007{selected_aid}00", f"SELECT AID {selected_aid}")
+        if not aid_response or not aid_response.endswith('9000'):
+            logger.error("RAPID EMV: AID selection failed - %s", aid_response or "No response")
+            return False
+        
+        logger.info("[RAPID-SUCCESS] SELECT AID %s", selected_aid)
+        
+        # Step 4: GPO (rapid)
+        gpo_response = self.send_apdu("80a8000023832127000000000000001000000000000000097800000000000978230301003839303100", "GPO")
+        if not gpo_response or not gpo_response.endswith('9000'):
+            logger.error("RAPID EMV: GPO failed - %s", gpo_response or "No response")
+            return False
+        
+        logger.info("[RAPID-SUCCESS] GPO")
+        
+        # Step 5: READ RECORD (rapid)
+        record_response = self.send_apdu("00B2011400", "READ RECORD SFI=2 Record=1")
+        if not record_response or not record_response.endswith('9000'):
+            logger.warning("RAPID EMV: READ RECORD failed - %s", record_response or "No response")
+            # Don't fail the whole transaction for READ RECORD
+        else:
+            logger.info("[RAPID-SUCCESS] READ RECORD")
+        
+        logger.info("=" * 70)
+        logger.info("🚀 RAPID EMV TRANSACTION COMPLETE!")
+        logger.info("=" * 70)
+        return True
+    
+    def parse_ppse_response(self, ppse_hex: str) -> list:
+        """Parse PPSE response to extract AIDs"""
+        try:
+            ppse_bytes = bytes.fromhex(ppse_hex[:-4])  # Remove 9000
+            aids = []
             
-            # Check if target is still selected, re-detect if needed
-            if not self.target_selected:
-                logger.warning("REAL HARDWARE: Target lost, attempting re-detection...")
-                if not self.detect_card():
-                    logger.error("REAL HARDWARE: Failed to re-detect card, aborting workflow")
-                    break
-            
-            response = self.send_apdu(command, description)
-            
-            if response:
-                if response.endswith('9000'):
-                    success_count += 1
-                    logger.info("[REAL-SUCCESS] %s", description)
+            # Look for AID tags (4F xx [AID]) in PPSE response
+            i = 0
+            while i < len(ppse_bytes) - 2:
+                if ppse_bytes[i] == 0x4F:  # AID tag
+                    aid_len = ppse_bytes[i + 1]
+                    if i + 2 + aid_len <= len(ppse_bytes):
+                        aid = ppse_bytes[i + 2:i + 2 + aid_len].hex().upper()
+                        aids.append(aid)
+                        logger.info("PPSE Parser: Found AID %s", aid)
+                        i += 2 + aid_len
+                    else:
+                        i += 1
                 else:
-                    # All 6xxx responses are error codes (6A82=File not found, etc.)
-                    logger.warning("[REAL-ERROR] %s - Error: %s", description, response)
-            else:
-                logger.error("[REAL-FAILED] %s - No response", description)
+                    i += 1
+            
+            return aids
+        except Exception as e:
+            logger.error("PPSE Parser: Failed to parse response - %s", e)
+            return []
             
             time.sleep(1.0)  # EMV timing: proper delay between commands
         
