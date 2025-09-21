@@ -30,6 +30,18 @@ android-app/.idea/
 .idea/
 *.iml
 
+# 🎯 PERSONAL THEME & CONFIG - KEEP LOCAL 🎯
+# Elite hacker theme and personal configs stay on your machine
+.vscode/snippets/
+.vscode/keybindings.json
+**/elite_theme.*
+**/hacker_theme.*
+**/*31337*
+**/*l33t*
+**/*elite*
+personal_config/
+local_settings/
+
 # OS Files
 .DS_Store
 Thumbs.db
