@@ -1,0 +1,233 @@
+manifest:
+  project:
+    name: "mag-sp00f"
+    package: "com.mag-sp00f.app"
+    version: "1.0.0"
+    platform: "Android 14+"
+    architecture: "HCE-based magstripe emulation with integrated Python backend"
+    ui_framework: "Material Design 3 with Bottom Navigation"
+    
+  features:
+    core:
+      - track2_data_input
+      - contactless_magstripe_emulation
+      - magstripe_downgrade_aip_flip
+      - apdu_command_logging
+      - visa_msd_validation
+      - dual_pn532_connectivity
+      - integrated_python_backend
+      - real_time_terminal_testing
+      - apdu_flow_hooks_gpo_ppse
+      - mini_fuzzer_security_testing
+    
+    ui_components:
+      - material3_bottom_navigation
+      - mag_spoof_splash_screen
+      - track2_input_interface
+      - emulation_control_panel
+      - pn532_connection_switcher
+      - real_time_apdu_monitor
+      - fuzzer_control_interface
+      - settings_configuration
+    
+    backend:
+      - enhanced_nfc_hce_service
+      - dual_pn532_manager
+      - python_runtime_integration
+      - apdu_flow_interceptor
+      - gpo_ppse_hooks
+      - response_data_generator
+      - mini_fuzzer_engine
+      - real_time_debugger
+    
+    testing:
+      - dual_pn532_automation
+      - usb_serial_connectivity
+      - bluetooth_hc06_connectivity
+      - apdu_workflow_validation
+      - usa_emv_flow_testing
+      - real_time_hce_debugging
+      - mini_fuzzer_security_analysis
+      - performance_analysis
+      - security_assessment
+
+  hardware_requirements:
+    pn532_connectivity:
+      usb_serial: "/dev/ttyUSB0"
+      bluetooth_hc06:
+        ssid: "PN532"
+        pin: "1234"
+        mac_address: "00:14:03:05:5C:CB"
+      connection_switching: "runtime_selectable"
+    
+    python_integration:
+      runtime: "embedded_in_apk"
+      libraries: ["pyserial", "bluetooth", "pn532lib"]
+      automation_scripts: ["pn532_android.py", "emu_controller.py"]
+
+  batches:
+    batch_1:
+      id: 1
+      tasks:
+        - setup_project_structure
+        - implement_main_activity
+        - create_navigation_drawer
+        - setup_hce_service_foundation
+      max_tasks: 4
+      
+    batch_2:
+      id: 2
+      tasks:
+        - implement_track2_input_interface
+        - create_apdu_processor
+        - setup_logging_system
+        - implement_basic_emulation
+      max_tasks: 4
+      
+    batch_3:
+      id: 3
+      tasks:
+        - implement_msd_generator
+        - add_aip_manipulation
+        - create_visa_msd_validation
+        - enhance_apdu_logging
+      max_tasks: 4
+      
+    batch_4:
+      id: 4
+      tasks:
+        - create_pn532_terminal_script
+        - implement_automated_testing
+        - add_performance_metrics
+        - finalize_ui_components
+      max_tasks: 4
+      
+    batch_5:
+      id: 5
+      tasks:
+        - comprehensive_testing
+        - documentation_finalization
+        - security_audit
+        - release_preparation
+      max_tasks: 4
+
+  quality_standards:
+    naming_conventions:
+      python: "snake_case"
+      java_kotlin_classes: "PascalCase"
+      java_kotlin_methods: "camelCase"
+      android_resources: "lowercase_underscore"
+      package: "com.mag-sp00f.app"
+    
+    code_quality:
+      no_placeholders: true
+      production_ready: true
+      comprehensive_error_handling: true
+      human_readable_documentation: true
+      syntax_validation_required: true
+    
+    file_integrity:
+      no_appending: true
+      no_patching: true
+      full_regeneration_on_corruption: true
+      single_import_block: true
+      proper_function_scope: true
+
+  testing_framework:
+    hardware:
+      pn532_support: "/dev/ttyUSB0 or /dev/rfcomm0"
+      libnfc_integration: true
+      automated_validation: true
+    
+    workflows:
+      visa_msd_aids:
+        - "A0000000031010"  # Visa MSD
+        - "A0000000980840"  # US Common Debit
+      
+      apdu_steps:
+        select_ppse: "00A404000E325041592E5359532E444446303100"
+        select_aid: "dynamic_based_on_aid"
+        gpo: "80A8000008832127000000000000001000000000000000097800000000000978230301003839303100"
+        read_record: "00B2010C00"
+
+  automation_scripts:
+    required:
+      - audit_codebase.py
+      - naming_auditor.py
+      - lint_codebase.py
+      - pn532_terminal.py
+      - backup_manager.py
+      - manifest_generator.py
+      - task_tracker.py
+      - export_for_release.py
+    
+    quality_gates:
+      run_after_each_batch: true
+      zero_tolerance_policy: true
+      performance_tracking: true
+      remember_mcp_integration: true
+
+  remember_mcp_config:
+    scope: "workspace"
+    language_specific: 
+      - "Java/Kotlin for Android"
+      - "Python for automation scripts"
+    
+    persistent_storage:
+      - user_coding_preferences
+      - quality_metrics_history
+      - successful_code_patterns
+      - error_prevention_rules
+      - performance_optimization_data
+    
+    sync_frequency: "after_each_batch"
+    
+  efficiency_targets:
+    batch_completion_time: "< 2 minutes"
+    first_pass_audit_success: "> 95%"
+    file_regeneration_incidents: "0 per project"
+    naming_convention_compliance: "100%"
+    
+  security_requirements:
+    data_protection:
+      local_storage_only: true
+      no_external_transmission: true
+      automatic_cleanup: true
+      secure_memory_management: true
+    
+    development_security:
+      no_arbitrary_shell_execution: true
+      agent_scripts_not_shipped: true
+      comprehensive_input_validation: true
+      audit_trail_maintenance: true
+
+  build_configuration:
+    gradle:
+      android_plugin: true
+      quality_checks_integrated: true
+      dependency_auto_resolution: true
+      performance_optimization: true
+    
+    vscode_integration:
+      tasks_json: "automated_generation"
+      launch_json: "debug_configurations"
+      workspace_settings: "consistent_formatting"
+
+  release_criteria:
+    code_quality:
+      zero_corruption_incidents: true
+      complete_naming_compliance: true
+      comprehensive_documentation: true
+      security_audit_passed: true
+    
+    functionality:
+      all_features_implemented: true
+      pn532_testing_validated: true
+      visa_msd_workflows_confirmed: true
+      performance_targets_met: true
+    
+    cleanup:
+      agent_scripts_removed: true
+      development_artifacts_cleaned: true
+      final_audit_completed: true
+      release_checklist_verified: true

@@ -1,0 +1,62 @@
+# 💀 MAG-SP00F v31.337 GITIGNORE 💀
+# 🏴‍☠️ Elite EMV/NFC Spoofing Test Environment 🏴‍☠️
+
+# Python Virtual Environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Android Build Files
+android-app/build/
+android-app/.gradle/
+android-app/local.properties
+android-app/.idea/
+*.apk
+*.aab
+
+# Temporary Files
+.tmp/
+*.tmp
+*.log
+*.swp
+*.swo
+*~
+
+# IDE Files
+.vscode/settings.json
+.idea/
+*.iml
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Hardware Connection Logs
+/tmp/pn532_connect.log
+
+# Security - Private Keys/Certs
+*.key
+*.pem
+*.p12
+*.jks
+
+# Backup Files
+*.bak
+*.backup
+
+# Test Data - Keep structure, not sensitive data
+data/test_cards_real.json
+data/private_keys/
+
+# Environment Variables
+.env
+.env.local
+
+# Documentation Builds
+docs/_build/
+docs/html/
+
+# 📞 READY FOR 31337 DEVELOPMENT! 📞

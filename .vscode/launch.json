@@ -1,0 +1,38 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Audit Codebase",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/audit_codebase.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Python: PN532 Terminal",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/pn532_terminal.py",
+            "args": ["--port", "/dev/ttyUSB0"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Python: Naming Auditor",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/naming_auditor.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Python: Task Tracker",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/task_tracker.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

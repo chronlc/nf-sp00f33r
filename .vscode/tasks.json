@@ -1,0 +1,194 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Android Debug",
+            "type": "shell",
+            "command": "./gradlew",
+            "args": ["assembleDebug"],
+            "options": {
+                "cwd": "${workspaceFolder}/android-app"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Install Android App",
+            "type": "shell",
+            "command": "adb",
+            "args": ["install", "-r", "build/outputs/apk/debug/app-debug.apk"],
+            "options": {
+                "cwd": "${workspaceFolder}/android-app"
+            },
+            "group": "build",
+            "dependsOn": "Build Android Debug",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Clean Android Build",
+            "type": "shell",
+            "command": "./gradlew",
+            "args": ["clean"],
+            "options": {
+                "cwd": "${workspaceFolder}/android-app"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Audit Codebase",
+            "type": "shell",
+            "command": "python3",
+            "args": ["scripts/audit_codebase.py"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Naming Convention Check",
+            "type": "shell",
+            "command": "python3",
+            "args": ["scripts/naming_auditor.py"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Code Quality Check",
+            "type": "shell",
+            "command": "python3",
+            "args": ["scripts/code_quality_check.py"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "PN532 Terminal Test",
+            "type": "shell",
+            "command": "python3",
+            "args": ["scripts/pn532_terminal.py", "--port", "/dev/ttyUSB0"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Full Quality Suite",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Audit Codebase",
+                "Naming Convention Check", 
+                "Code Quality Check"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Backup Current State",
+            "type": "shell",
+            "command": "python3",
+            "args": ["scripts/backup_manager.py", "--create"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "PN532 Reconnect",
+            "type": "shell",
+            "command": "./scripts/pn532_reconnect.sh",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "PN532 EMV Flow Test",
+            "type": "shell",
+            "command": "bash",
+            "args": ["-c", "source .venv/bin/activate && python3 scripts/pn532_emv_flow.py /dev/rfcomm1"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "test",
+            "dependsOn": "PN532 Reconnect",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Export for Release",
+            "type": "shell",
+            "command": "python3",
+            "args": ["scripts/export_for_release.py"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true
+            }
+        }
+    ]
+}

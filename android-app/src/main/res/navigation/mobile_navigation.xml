@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/app/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mobile_navigation"
+    app:startDestination="@id/nav_track2">
+
+    <fragment
+        android:id="@+id/nav_track2"
+        android:name="com.mag_sp00f.app.ui.track2.Track2Fragment"
+        android:label="@string/bottom_nav_track2"
+        tools:layout="@layout/fragment_track2" />
+
+    <fragment
+        android:id="@+id/nav_emulation"
+        android:name="com.mag_sp00f.app.ui.emulation.EmulationFragment"
+        android:label="@string/bottom_nav_emu"
+        tools:layout="@layout/fragment_emulation" />
+
+    <fragment
+        android:id="@+id/nav_logs"
+        android:name="com.mag_sp00f.app.ui.logs.LogsFragment"
+        android:label="@string/bottom_nav_logs"
+        tools:layout="@layout/fragment_logs" />
+
+    <fragment
+        android:id="@+id/nav_settings"
+        android:name="com.mag_sp00f.app.ui.settings.SettingsFragment"
+        android:label="@string/bottom_nav_settings"
+        tools:layout="@layout/fragment_settings" />
+
+    <fragment
+        android:id="@+id/nav_fuzzer"
+        android:name="com.mag_sp00f.app.ui.fuzzer.FuzzerFragment"
+        android:label="@string/bottom_nav_fuzzer"
+        tools:layout="@layout/fragment_fuzzer" />
+
+</navigation>
