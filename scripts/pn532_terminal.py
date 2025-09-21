@@ -118,62 +118,168 @@ class PN532Terminal:
             self.ser.close()
             logger.info("REAL HARDWARE: Disconnected from PN532")
     
-    def send_command(self, command: str, description: str = "") -> Optional[str]:
-        """Send REAL command to REAL PN532 hardware and get REAL response"""
+    def send_apdu(self, apdu_hex: str, description: str = "") -> Optional[str]:
+        """Send APDU command to card via PN532 hardware"""
         if not self.ser or not self.ser.is_open:
             logger.error("REAL HARDWARE: Serial port not open")
             return None
         
         try:
-            cmd_bytes = bytes.fromhex(command)
-            logger.info("[REAL-TX] %s: %s", description or "Command", command)
+            # Convert APDU hex to bytes
+            apdu_bytes = bytes.fromhex(apdu_hex)
+            apdu_len = len(apdu_bytes)
             
-            self.ser.write(cmd_bytes)
-            time.sleep(0.1)
+            # Build PN532 InDataExchange command frame
+            # Format: 00 00 FF LEN CS D4 40 01 [APDU] CS 00
+            frame = bytearray()
+            frame.extend([0x00, 0x00, 0xFF])  # Preamble and start code
             
+            data_len = apdu_len + 2  # D4 40 01 + APDU
+            frame.append(data_len + 1)  # Length including command
+            frame.append((~(data_len + 1) + 1) & 0xFF)  # Length checksum
+            
+            frame.extend([0xD4, 0x40, 0x01])  # InDataExchange command
+            frame.extend(apdu_bytes)  # APDU data
+            
+            # Calculate data checksum
+            checksum = 0
+            for b in frame[5:]:  # Skip preamble, start, length, length_cs
+                checksum += b
+            frame.append((~checksum + 1) & 0xFF)
+            frame.append(0x00)  # Postamble
+            
+            logger.info("[REAL-TX] %s: %s", description or "APDU", apdu_hex)
+            
+            # Send command
+            self.ser.write(frame)
+            time.sleep(0.5)
+            
+            # Read response with extended timeout for complex APDUs
             response = b''
             start_time = time.time()
             
-            while time.time() - start_time < 2.0:
+            while time.time() - start_time < 3.0:  # Extended timeout
                 if self.ser.in_waiting:
                     chunk = self.ser.read(self.ser.in_waiting)
                     response += chunk
-                    time.sleep(0.05)
+                    time.sleep(0.1)  # Longer pause between reads
                 else:
-                    time.sleep(0.1)
-            
+                    time.sleep(0.2)  # Longer wait for more data
+                
+                # Stop if we have a complete frame (basic check)
+                if len(response) >= 6 and response[-2:] == b'\x00\x00':
+                    break
             if response:
                 response_hex = response.hex().upper()
-                logger.info("[REAL-RX] Response: %s", response_hex)
-                return response_hex
-            else:
-                logger.warning("REAL HARDWARE: No response received")
-                return None
+                logger.info("[REAL-RX] Raw response: %s", response_hex)
+                
+                # PN532 sends concatenated frames with empty frames first
+                # Skip empty frames, find data frame at offset 6 for APDU extraction
+                data_start = 0
+                for i in range(len(response) - 7):
+                    if (response[i] == 0x00 and response[i+1] == 0x00 and 
+                        response[i+2] == 0xFF and i+5 < len(response) and
+                        response[i+5] == 0xD5 and response[i+6] == 0x41):
+                        data_start = i + 6  # Found data frame, APDU starts after offset 6
+                        break
+                
+                if data_start > 0:
+                    # Extract APDU response from data frame
+                    apdu_start = data_start + 2  # Skip D5 41 status bytes
+                    apdu_data = response[apdu_start:-2]  # Remove checksum and postamble
+                    if apdu_data:
+                        apdu_hex = apdu_data.hex().upper()
+                        logger.info("[REAL-RX] APDU response: %s", apdu_hex)
+                        return apdu_hex
+                else:
+                    logger.warning("REAL HARDWARE: No valid data frame found in response")
+                
+            logger.warning("REAL HARDWARE: No valid APDU response received")
+            return None
                 
         except Exception as e:
-            logger.error("REAL HARDWARE: Command failed: %s", e)
+            logger.error("REAL HARDWARE: APDU command failed: %s", e)
             return None
     
     def initialize_reader(self) -> bool:
         """Initialize REAL PN532 hardware for contactless communication"""
-        init_commands = [
-            ("55550000000000FF00FF00", "Wake up PN532"),
-            ("55550000000100FFFF00", "SAM Configuration"),
-            ("55550000000200FFFF0102", "RF Configuration"),
-            ("5555000000040014FF5401FF00", "InListPassiveTarget")
-        ]
-        
         logger.info("REAL HARDWARE: Initializing PN532 reader...")
         
-        for command, desc in init_commands:
-            response = self.send_command(command, desc)
-            if not response:
-                logger.error("REAL HARDWARE: Initialization failed at: %s", desc)
-                return False
-            time.sleep(0.1)
+        try:
+            # Reset buffers
+            if self.ser.in_waiting:
+                self.ser.reset_input_buffer()
+            self.ser.reset_output_buffer()
+            time.sleep(0.5)
+            
+            # Wake up command (proven working sequence from pn532_emv_flow.py)
+            wake_cmd = b'\x55\x55\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            self.ser.write(wake_cmd)
+            time.sleep(0.5)
+            
+            # Get version
+            version_cmd = b'\x00\x00\xFF\x02\xFE\xD4\x02\x2A\x00'
+            self.ser.write(version_cmd)
+            time.sleep(0.5)
+            response = self.ser.read(20)
+            logger.info("REAL HARDWARE: Version response: %s", response.hex() if response else 'None')
+            
+            # Configure SAM
+            sam_cmd = b'\x00\x00\xFF\x04\xFC\xD4\x14\x01\x17\x00'
+            self.ser.write(sam_cmd)
+            time.sleep(0.2)
+            response = self.ser.read(10)
+            
+            # Enable RF field
+            rf_cmd = b'\x00\x00\xFF\x04\xFC\xD4\x32\x01\x01\x00\xE0\x00'
+            self.ser.write(rf_cmd)
+            time.sleep(0.2)
+            response = self.ser.read(10)
+            
+            logger.info("REAL HARDWARE: PN532 reader initialized successfully!")
+            return True
+            
+        except Exception as e:
+            logger.error("REAL HARDWARE: Initialization failed: %s", e)
+            return False
+    
+    def detect_card(self) -> bool:
+        """Detect and select contactless card"""
+        logger.info("REAL HARDWARE: Detecting contactless card...")
         
-        logger.info("REAL HARDWARE: PN532 reader initialized successfully!")
-        return True
+        for attempt in range(10):
+            logger.info("REAL HARDWARE: Detection attempt %d/10 - Hold phone on PN532!", attempt + 1)
+            
+            # Use the working detection command
+            detect_cmd = b'\x00\x00\xFF\x04\xFC\xD4\x4A\x01\x00\xE1\x00'
+            self.ser.write(detect_cmd)
+            time.sleep(0.5)
+            response = self.ser.read(50)
+            
+            if response and len(response) >= 8:
+                logger.info("REAL HARDWARE: Raw detection response: %s", response.hex().upper())
+                
+                # PN532 sends concatenated frames, find the actual data frame
+                data_start = 0
+                for i in range(len(response) - 7):
+                    if (response[i] == 0x00 and response[i+1] == 0x00 and 
+                        response[i+2] == 0xFF and i+5 < len(response) and
+                        response[i+5] == 0xD5 and response[i+6] == 0x4B):
+                        data_start = i + 6  # Found data frame
+                        break
+                
+                if data_start > 0 and len(response) > data_start + 5:
+                    # Check if card was detected (status byte after D5 4B)
+                    if response[data_start + 2] == 0x01:  # Number of targets found
+                        logger.info("REAL HARDWARE: Contactless card detected successfully!")
+                        return True
+                    else:
+                        logger.debug("REAL HARDWARE: No card detected in this attempt")
+            
+            time.sleep(0.5)
+        
+        logger.error("REAL HARDWARE: Failed to detect contactless card after 10 attempts")
+        return False
     
     def execute_workflow(self, workflow_id: int) -> bool:
         """Execute specified EMV workflow on REAL hardware"""
@@ -193,24 +299,25 @@ class PN532Terminal:
             return False
         
         logger.info("REAL HARDWARE: PLACE ANDROID HCE DEVICE ON PN532 READER...")
-        logger.info("REAL HARDWARE: Waiting for contactless card...")
-        time.sleep(3)
+        
+        # Detect and select target before sending APDUs
+        if not self.detect_card():
+            logger.error("REAL HARDWARE: Card detection failed")
+            return False
         
         success_count = 0
         total_commands = len(workflow['commands'])
         
         for i, (command, description) in enumerate(workflow['commands'], 1):
             logger.info("REAL HARDWARE: Command %d/%d: %s", i, total_commands, description)
-            response = self.send_command(command, description)
+            response = self.send_apdu(command, description)
             
             if response:
                 if response.endswith('9000'):
                     success_count += 1
                     logger.info("[REAL-SUCCESS] %s", description)
-                elif not response.startswith('6A'):
-                    success_count += 1
-                    logger.info("[REAL-SUCCESS] %s (Response: %s)", description, response[:20] + "...")
                 else:
+                    # All 6xxx responses are error codes (6A82=File not found, etc.)
                     logger.warning("[REAL-ERROR] %s - Error: %s", description, response)
             else:
                 logger.error("[REAL-FAILED] %s - No response", description)
