@@ -20,10 +20,11 @@ logger = logging.getLogger(__name__)
 class RapidPN532Terminal:
     """Ultra-fast PN532 EMV Terminal using RFIDIOt approach"""
     
-    def __init__(self, port: str):
+    def __init__(self, port: str, workflow: int = 1):
         self.port = port
         self.ser = None
         self.target_active = False
+        self.workflow = workflow
         
         # EMV workflows - optimized for speed
         self.WORKFLOWS = {
@@ -185,8 +186,8 @@ class RapidPN532Terminal:
         
         logger.info("BLAZING EMV: Found AIDs: %s", aids)
         
-        # SELECT AID - instant
-        aid = aids[0]
+        # SELECT AID - instant (try second AID for workflow variety)
+        aid = aids[1] if len(aids) > 1 and self.workflow == 2 else aids[0]  # Use second AID for workflow 2
         aid_resp = self.send_apdu_instant(f"00a4040007{aid}00", f"SELECT AID {aid}")
         if not aid_resp or not aid_resp.endswith('9000'):
             logger.error("BLAZING EMV: AID selection failed")
@@ -239,7 +240,7 @@ def main():
     logger.info("🎯 Port: %s | Workflow: %d", args.port, args.workflow)
     logger.info("=" * 70)
     
-    terminal = RapidPN532Terminal(args.port)
+    terminal = RapidPN532Terminal(args.port, args.workflow)
     
     try:
         if not terminal.connect():
