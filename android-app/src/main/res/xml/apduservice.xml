@@ -22,12 +22,4 @@
         <aid-filter android:name="A0000000250100" />
     </aid-group>
 
-    <!-- Additional group for PPSE with different category approach -->
-    <aid-group
-        android:category="other"
-        android:description="@string/hce_service_description">
-        <aid-filter android:name="325041592E5359532E4444463031" />
-        <aid-filter android:name="315041592E5359532E4444463031" />
-    </aid-group>
-
 </host-apdu-service>
