@@ -4,59 +4,58 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
-import com.mag_sp00f.app.cardreading.CardProfileManager
-import com.mag_sp00f.app.cardreading.NfcCardReader
-import com.mag_sp00f.app.cardreading.CardReadingCallback
-import com.mag_sp00f.app.data.EmvCardData
+import com.mag_sp00f.app.R
 import com.mag_sp00f.app.data.ApduLogEntry
+import com.mag_sp00f.app.data.EmvCardData
+import com.mag_sp00f.app.cardreading.CardReadingCallback
+import com.mag_sp00f.app.cardreading.NfcCardReader
+import com.mag_sp00f.app.cardreading.CardProfileManager
 import com.mag_sp00f.app.ui.theme.MagSp00fTheme
 import timber.log.Timber
 
-/**
- * Production-grade Card Reading Fragment with LIVE APDU LOG DISPLAY
- * Real-time EMV parsing with unmasked PAN for database organization
- * Per newrule.md: NO SIMPLIFIED CODE - FULL PRODUCTION FUNCTIONALITY
- */
 class CardReadingFragment : Fragment(), CardReadingCallback {
-    
-    private lateinit var cardProfileManager: CardProfileManager
+
+    private val cardProfileManager = CardProfileManager()
     private lateinit var nfcCardReader: NfcCardReader
-    
-    // Live state for real-time updates
-    private var isReading = mutableStateOf(false)
-    private var apduLog = mutableStateOf<List<ApduLogEntry>>(emptyList())
-    private var currentCardData = mutableStateOf<EmvCardData?>(null)
-    private var statusMessage = mutableStateOf("💀 NFC CARD READER READY\n\nTap START to begin live EMV analysis")
-    
+    // Compose-visible state holders so callbacks can update UI from any thread
+    private val isReadingState = mutableStateOf(false)
+    private val statusMessageState = mutableStateOf("Ready to read card")
+    private val apduLogState = mutableStateOf(listOf<ApduLogEntry>())
+    private val currentCardDataState = mutableStateOf<EmvCardData?>(null)
+
     companion object {
-        private const val TAG = "🏴‍☠️ CardReadingFragment"
-        
-        fun newInstance() = CardReadingFragment()
+        private const val TAG = "CardReadingFragment"
     }
-    
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        nfcCardReader = NfcCardReader(requireActivity(), this)
+
         return ComposeView(requireContext()).apply {
             setContent {
                 MagSp00fTheme {
@@ -65,191 +64,325 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
             }
         }
     }
-    
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        
-        // Initialize components
-        cardProfileManager = CardProfileManager()
-        nfcCardReader = NfcCardReader(requireActivity(), this)
-        
-        Timber.d("$TAG 🎯 Production-grade card reading fragment initialized")
-    }
-    
+
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun CardReadingScreen() {
-        val reading by isReading
-        val logs by apduLog
-        val cardData by currentCardData
-        val status by statusMessage
-        val scrollState = rememberScrollState()
-        
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            // Control Panel
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "🔥 LIVE EMV ANALYSIS",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = { startReading() },
-                            enabled = !reading,
-                            modifier = Modifier.weight(1f)
+    private fun CardReadingScreen() {
+        val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    // Use fragment-level state holders so CardReadingCallback can update UI
+    var isReading by isReadingState
+    var statusMessage by statusMessageState
+    var apduLog by apduLogState
+    var currentCardData by currentCardDataState
+
+        Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("START")
-                        }
-                        
-                        Button(
-                            onClick = { stopReading() },
-                            enabled = reading,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
+                            Icon(
+                                imageVector = Icons.Default.Nfc,
+                                contentDescription = "NFC Icon",
+                                tint = Color(0xFF00FF41),
+                                modifier = Modifier.size(24.dp)
                             )
-                        ) {
-                            Icon(Icons.Default.Stop, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("STOP")
-                        }
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Live Status Display
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "📊 STATUS",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        status,
-                        fontSize = 14.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = if (reading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Card Data Display (Unmasked PAN)
-            if (cardData != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "�� EXTRACTED EMV DATA (UNMASKED)",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                            if (cardData!!.pan != null) {
-                                Text("🔢 PAN: ${cardData!!.pan}", fontFamily = FontFamily.Monospace)
-                            }
-                            if (cardData!!.track2Data != null) {
-                                Text("💾 Track2: ${cardData!!.track2Data}", fontFamily = FontFamily.Monospace)
-                            }
-                            if (cardData!!.cardholderName != null) {
-                                Text("👤 Cardholder: ${cardData!!.cardholderName}", fontFamily = FontFamily.Monospace)
-                            }
-                            if (cardData!!.expiryDate != null) {
-                                Text("📅 Expiry: ${cardData!!.expiryDate}", fontFamily = FontFamily.Monospace)
-                            }
-                            if (cardData!!.applicationInterchangeProfile != null) {
-                                Text("🎯 AIP: ${cardData!!.applicationInterchangeProfile}", fontFamily = FontFamily.Monospace)
-                            }
-                            if (cardData!!.applicationFileLocator != null) {
-                                Text("📂 AFL: ${cardData!!.applicationFileLocator}", fontFamily = FontFamily.Monospace)
-                            }
-                            if (cardData!!.availableAids.isNotEmpty()) {
-                                Text("🎭 AIDs: ${cardData!!.availableAids.joinToString()}", fontFamily = FontFamily.Monospace)
-                            }
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-            
-            // Live APDU Log Display
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "📞 LIVE APDU LOG",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "${logs.size} entries",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    if (logs.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
                             Text(
-                                "Waiting for APDU commands...",
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                text = "nf-sp00f33r",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00FF41),
+                                fontFamily = FontFamily.Monospace
                             )
                         }
-                    } else {
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = Color(0xFF0D1117),
+                        titleContentColor = Color(0xFF00FF41),
+                        navigationIconContentColor = Color(0xFF00FF41),
+                        actionIconContentColor = Color(0xFF00FF41)
+                    ),
+                    scrollBehavior = scrollBehavior
+                )
+            },
+            bottomBar = {
+                NavigationBar(
+                    containerColor = Color(0xFF161B22),
+                    contentColor = Color(0xFF00FF41)
+                ) {
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.CreditCard, contentDescription = "Read") },
+                        label = { Text("Read", fontSize = 10.sp) },
+                        selected = true,
+                        onClick = { },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color(0xFF00FF41),
+                            selectedTextColor = Color(0xFF00FF41),
+                            indicatorColor = Color(0xFF21262D),
+                            unselectedIconColor = Color(0xFF7D8590),
+                            unselectedTextColor = Color(0xFF7D8590)
+                        )
+                    )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.Security, contentDescription = "Emulate") },
+                        label = { Text("Emulate", fontSize = 10.sp) },
+                        selected = false,
+                        onClick = { },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color(0xFF00FF41),
+                            selectedTextColor = Color(0xFF00FF41),
+                            indicatorColor = Color(0xFF21262D),
+                            unselectedIconColor = Color(0xFF7D8590),
+                            unselectedTextColor = Color(0xFF7D8590)
+                        )
+                    )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.Storage, contentDescription = "Database") },
+                        label = { Text("Database", fontSize = 10.sp) },
+                        selected = false,
+                        onClick = { },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color(0xFF00FF41),
+                            selectedTextColor = Color(0xFF00FF41),
+                            indicatorColor = Color(0xFF21262D),
+                            unselectedIconColor = Color(0xFF7D8590),
+                            unselectedTextColor = Color(0xFF7D8590)
+                        )
+                    )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.Analytics, contentDescription = "Analysis") },
+                        label = { Text("Analysis", fontSize = 10.sp) },
+                        selected = false,
+                        onClick = { },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color(0xFF00FF41),
+                            selectedTextColor = Color(0xFF00FF41),
+                            indicatorColor = Color(0xFF21262D),
+                            unselectedIconColor = Color(0xFF7D8590),
+                            unselectedTextColor = Color(0xFF7D8590)
+                        )
+                    )
+                }
+            },
+            containerColor = Color(0xFF0D1117)
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF0D1117),
+                                Color(0xFF161B22),
+                                Color(0xFF21262D)
+                            )
+                        )
+                    )
+                    .padding(paddingValues)
+            ) {
+                // Background image
+                Image(
+                    painter = painterResource(id = R.drawable.nfspoof3),
+                    contentDescription = "Background",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    alpha = 0.1f
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Status Card
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .verticalScroll(scrollState)
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            logs.forEach { entry ->
-                                ApduLogEntryDisplay(entry)
+                            Text(
+                                text = "NFC Card Reader Status",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00FF41),
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = statusMessage,
+                                fontSize = 14.sp,
+                                color = Color.White,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    // Control Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                    statusMessageState.value = "🔍 Starting NFC scan..."
+                                    nfcCardReader.startReading()
+                                },
+                            enabled = !isReading,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF00FF41),
+                                contentColor = Color.Black
+                            )
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("START", fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                nfcCardReader.stopReading()
+                                statusMessageState.value = "NFC reading stopped"
+                            },
+                            enabled = isReading,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFF4444),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(Icons.Default.Stop, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("STOP", fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Current Card Data - Comprehensive EMV Display
+                    currentCardData?.let { cardData ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "💳 EMV Card Data Extracted",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF00FF41),
+                                    modifier = Modifier.padding(bottom = 12.dp)
+                                )
+
+                                // Core Card Data
+                                CardDataField("PAN (5A)", cardData.pan ?: "N/A")
+                                CardDataField("Track2 (57)", cardData.track2Data ?: "N/A") 
+                                CardDataField("Cardholder (5F20)", cardData.cardholderName ?: "N/A")
+                                CardDataField("Expiry (5F24)", cardData.expiryDate ?: "N/A")
+                                
                                 Spacer(modifier = Modifier.height(8.dp))
+                                
+                                // Application Data
+                                CardDataField("AID", cardData.applicationIdentifier ?: "N/A")
+                                CardDataField("App Label (50)", cardData.applicationLabel)
+                                CardDataField("AIP (82)", cardData.applicationInterchangeProfile ?: "N/A")
+                                CardDataField("AFL (94)", cardData.applicationFileLocator ?: "N/A")
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                // Cryptographic Data
+                                if (cardData.applicationCryptogram != null) {
+                                    CardDataField("Cryptogram (9F26)", cardData.applicationCryptogram!!)
+                                }
+                                if (cardData.cryptogramInformationData != null) {
+                                    CardDataField("CID (9F27)", cardData.cryptogramInformationData!!)
+                                }
+                                if (cardData.applicationTransactionCounter != null) {
+                                    CardDataField("ATC (9F36)", cardData.applicationTransactionCounter!!)
+                                }
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                // EMV Tags Summary
+                                Text(
+                                    text = "📊 EMV Tags: ${cardData.emvTags.size} parsed",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF58A6FF),
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                                Text(
+                                    text = "🎯 Available AIDs: ${cardData.availableAids.size}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF58A6FF)
+                                )
+                                Text(
+                                    text = "🔍 APDU Commands: ${cardData.apduLog.size}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF58A6FF)
+                                )
+                            }
+                        }
+                    }
+
+                    // APDU Log - Comprehensive TX/RX Display
+                    if (apduLog.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "📡 Live APDU Transaction Log",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF00FF41),
+                                    modifier = Modifier.padding(bottom = 12.dp)
+                                )
+                                
+                                Text(
+                                    text = "Total Commands: ${apduLog.size} | Showing latest ${minOf(10, apduLog.size)}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF7D8590),
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+
+                                apduLog.takeLast(10).forEach { entry ->
+                                    ComprehensiveApduLogItem(entry)
+                                    if (entry != apduLog.last()) {
+                                        Divider(
+                                            color = Color(0xFF30363D),
+                                            modifier = Modifier.padding(vertical = 6.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -257,134 +390,182 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
             }
         }
     }
-    
+
     @Composable
-    fun ApduLogEntryDisplay(entry: ApduLogEntry) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-            )
+    private fun CardDataField(label: String, value: String) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                // Header with timestamp and status
+            Text(
+                text = "$label:",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF7D8590),
+                modifier = Modifier.weight(0.3f)
+            )
+            Text(
+                text = value,
+                fontSize = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color.White,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+
+    @Composable
+    private fun ComprehensiveApduLogItem(entry: ApduLogEntry) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+        ) {
+            // Command Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = entry.description.split(" | ").firstOrNull() ?: "APDU Command",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00FF41)
+                )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "📡 ${entry.description}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "${entry.executionTimeMs}ms",
+                        fontSize = 11.sp,
+                        color = Color(0xFF7D8590)
                     )
-                    Text(
-                        "${entry.executionTimeMs}ms",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    // Status indicator
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(
+                                color = if (entry.statusWord == "9000") Color(0xFF00FF41) else Color(0xFFFF4444),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
                     )
                 }
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                // Command
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // TX (Transmit) Section
+            Text(
+                text = "📤 TX (${entry.command.length / 2} bytes):",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF58A6FF),
+                modifier = Modifier.padding(bottom = 2.dp)
+            )
+            
+            Text(
+                text = formatHexString(entry.command),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFFE6EDF3),
+                modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+            )
+
+            // RX (Receive) Section
+            Text(
+                text = "📥 RX (${entry.response.length / 2} bytes):",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF58A6FF),
+                modifier = Modifier.padding(bottom = 2.dp)
+            )
+            
+            Text(
+                text = formatHexString(entry.response),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFFE6EDF3),
+                modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+            )
+
+            // Status Word
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    "📤 CMD: ${entry.command}",
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF4CAF50)
+                    text = "Status: ${entry.statusWord}",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (entry.statusWord == "9000") Color(0xFF00FF41) else Color(0xFFFF4444)
                 )
                 
-                // Response
                 Text(
-                    "📥 RSP: ${entry.response}",
+                    text = getStatusMeaning(entry.statusWord),
                     fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF2196F3)
-                )
-                
-                // Status Word with interpretation
-                val statusColor = when (entry.statusWord) {
-                    "9000" -> Color(0xFF4CAF50)
-                    else -> Color(0xFFFF5722)
-                }
-                
-                Text(
-                    "🎯 SW: ${entry.statusWord} ${interpretStatusWord(entry.statusWord)}",
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = statusColor
+                    color = Color(0xFF7D8590)
                 )
             }
         }
     }
     
-    private fun interpretStatusWord(sw: String): String {
-        return when (sw) {
-            "9000" -> "✅ SUCCESS"
-            "6A82" -> "❌ FILE NOT FOUND"
-            "6985" -> "❌ CONDITIONS NOT SATISFIED"
-            "6A86" -> "❌ INCORRECT P1 P2"
-            "6D00" -> "❌ INSTRUCTION NOT SUPPORTED"
-            "6E00" -> "❌ CLASS NOT SUPPORTED"
-            else -> "⚠️ UNKNOWN"
+    private fun formatHexString(hex: String): String {
+        // Format hex string with spaces every 2 characters and line breaks every 32 characters
+        return hex.chunked(2).joinToString(" ").let { formatted ->
+            formatted.chunked(48).joinToString("\n") // 16 bytes per line (48 chars with spaces)
         }
     }
     
-    // CardReadingCallback implementation
+    private fun getStatusMeaning(statusWord: String): String {
+        return when (statusWord) {
+            "9000" -> "Success"
+            "6200" -> "Warning"
+            "6300" -> "Authentication failed"
+            "6700" -> "Wrong length"
+            "6900" -> "Command not allowed"
+            "6A82" -> "File not found"
+            "6A84" -> "Not enough memory"
+            "6D00" -> "Instruction not supported"
+            "6E00" -> "Class not supported"
+            "ERROR" -> "Communication error"
+            else -> "See logs"
+        }
+    }
+
+    // Interface implementation
     override fun onReadingStarted() {
-        isReading.value = true
-        statusMessage.value = "🔥 NFC Reading Active\n\nPlace EMV card near device for live analysis..."
-        apduLog.value = emptyList()
-        currentCardData.value = null
-        Timber.d("$TAG 📡 Reading started")
+        Timber.tag(TAG).d("NFC reading started")
+        isReadingState.value = true
+        statusMessageState.value = "NFC reader active"
     }
-    
+
     override fun onReadingStopped() {
-        isReading.value = false
-        statusMessage.value = "⚡ NFC Reading Stopped\n\nTap START to begin new session"
-        Timber.d("$TAG 🛑 Reading stopped")
+        Timber.tag(TAG).d("NFC reading stopped")
+        isReadingState.value = false
+        statusMessageState.value = "NFC reader stopped"
     }
-    
+
     override fun onCardRead(cardData: EmvCardData) {
-        currentCardData.value = cardData
-        
-        // Update APDU log from card data
-        if (cardData.apduLog.isNotEmpty()) {
-            apduLog.value = cardData.apduLog
-        }
-        
-        statusMessage.value = buildString {
-            append("💀 Card Analysis Complete!\n\n")
-            append("🎯 EMV Data Extracted & Saved\n")
-            append("📊 APDU Log: ${cardData.apduLog.size} commands\n")
-            append("💾 Auto-saved to database")
-        }
-        
-        // Auto-save with unmasked PAN for database organization
+        // Save to database - fixed method name per MCP memory
         cardProfileManager.saveCard(cardData)
-        
-        Timber.d("$TAG 💾 Card data saved with unmasked PAN: ${cardData.pan}")
+        Timber.tag(TAG).d("Card read complete: PAN=${cardData.pan}")
+        // Update UI state with the newly read card
+        currentCardDataState.value = cardData
+        apduLogState.value = cardData.apduLog
+        statusMessageState.value = "Card read: ${cardData.getMaskedPan()}"
     }
-    
+
     override fun onError(error: String) {
-        statusMessage.value = "❌ Error: $error\n\n🔄 Check NFC settings and try again"
-        isReading.value = false
-        Timber.e("$TAG ❌ Reading error: $error")
+        Timber.tag(TAG).e("Card read error: $error")
     }
-    
-    fun startReading() {
-        nfcCardReader.startReading()
-    }
-    
-    fun stopReading() {
-        nfcCardReader.stopReading()
-    }
-    
+
     override fun onDestroyView() {
         super.onDestroyView()
-        if (isReading.value) {
-            nfcCardReader.stopReading()
-        }
+        nfcCardReader.stopReading()
     }
 }

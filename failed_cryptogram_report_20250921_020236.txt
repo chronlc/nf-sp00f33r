@@ -1,0 +1,142 @@
+================================================================================
+🚨 FAILED CRYPTOGRAM ATTACK TEST REPORT 🚨
+================================================================================
+Test Timestamp: 2025-09-21T02:02:22.507479
+Terminal Port: /dev/rfcomm1
+
+📊 EXECUTIVE SUMMARY
+----------------------------------------
+Total Attacks Tested: 6
+Successful Attacks: 6
+Overall Risk Level: HIGH
+
+🚨 CRITICAL VULNERABILITIES DETECTED
+----------------------------------------
+Attack: aac-force (Success: 100.0%)
+Risk Level: LOW
+  - Transaction approved despite failed cryptogram
+  - Terminal approved transaction with AAC (declined cryptogram)
+  - Transaction approved despite failed cryptogram
+  - Terminal approved transaction with AAC (declined cryptogram)
+  - Transaction approved despite failed cryptogram
+  - Terminal approved transaction with AAC (declined cryptogram)
+
+Attack: invalid-crypto (Success: 100.0%)
+Risk Level: HIGH
+  - Transaction approved despite failed cryptogram
+  - Terminal accepted obviously invalid cryptogram
+  - Transaction approved despite failed cryptogram
+  - Terminal accepted obviously invalid cryptogram
+  - Transaction approved despite failed cryptogram
+  - Terminal accepted obviously invalid cryptogram
+
+Attack: zero-crypto (Success: 100.0%)
+Risk Level: MEDIUM
+  - Transaction approved despite failed cryptogram
+  - Terminal accepted null/zero cryptogram
+  - Transaction approved despite failed cryptogram
+  - Terminal accepted null/zero cryptogram
+  - Transaction approved despite failed cryptogram
+  - Terminal accepted null/zero cryptogram
+
+Attack: corrupted-crypto (Success: 100.0%)
+Risk Level: MEDIUM
+  - Transaction approved despite failed cryptogram
+  - Transaction approved despite failed cryptogram
+  - Transaction approved despite failed cryptogram
+
+Attack: missing-crypto (Success: 100.0%)
+Risk Level: HIGH
+  - Transaction approved despite failed cryptogram
+  - Terminal processed transaction without cryptogram
+  - Transaction approved despite failed cryptogram
+  - Terminal processed transaction without cryptogram
+  - Transaction approved despite failed cryptogram
+  - Terminal processed transaction without cryptogram
+
+Attack: wrong-length (Success: 100.0%)
+Risk Level: HIGH
+  - Transaction approved despite failed cryptogram
+  - Transaction approved despite failed cryptogram
+  - Transaction approved despite failed cryptogram
+
+
+📋 DETAILED ATTACK RESULTS
+----------------------------------------
+Attack: AAC Force Attack
+Description: Force Application Authentication Cryptogram (declined)
+Success Rate: 100.0%
+Detection Risk: LOW
+Bypass Indicators:
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal approved transaction with AAC (declined cryptogram)
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal approved transaction with AAC (declined cryptogram)
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal approved transaction with AAC (declined cryptogram)
+
+Attack: Invalid Cryptogram Injection
+Description: Completely invalid cryptogram values
+Success Rate: 100.0%
+Detection Risk: HIGH
+Bypass Indicators:
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal accepted obviously invalid cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal accepted obviously invalid cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal accepted obviously invalid cryptogram
+
+Attack: Zero Cryptogram Attack
+Description: Null cryptogram authentication bypass
+Success Rate: 100.0%
+Detection Risk: MEDIUM
+Bypass Indicators:
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal accepted null/zero cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal accepted null/zero cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal accepted null/zero cryptogram
+
+Attack: Corrupted Cryptogram Test
+Description: Partially corrupted valid cryptogram
+Success Rate: 100.0%
+Detection Risk: MEDIUM
+Bypass Indicators:
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+
+Attack: Missing Cryptogram Attack
+Description: Remove cryptogram entirely
+Success Rate: 100.0%
+Detection Risk: HIGH
+Bypass Indicators:
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal processed transaction without cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal processed transaction without cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Terminal processed transaction without cryptogram
+
+Attack: Wrong Length Cryptogram
+Description: Incorrect TLV length indicators
+Success Rate: 100.0%
+Detection Risk: HIGH
+Bypass Indicators:
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+  ⚠️  Transaction approved despite failed cryptogram
+
+
+💡 SECURITY RECOMMENDATIONS
+----------------------------------------
+1. Implement strict cryptogram validation
+2. Reject transactions with missing/invalid cryptograms
+3. Add cryptogram verification to transaction processing
+4. Monitor for repeated failed cryptogram attempts
+
+================================================================================
+End of Report
+================================================================================

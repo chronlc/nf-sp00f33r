@@ -362,9 +362,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                     onClick = {
                         scope.launch {
                             try {
-                                cardProfiles.forEach { profile ->
-                                    cardManager.deleteCardProfile(profile.id)
-                                }
+                                cardManager.clearAllProfiles()
                                 cardProfiles = cardManager.getAllCardProfiles()
                                 showBulkDeleteConfirm = false
                                 Timber.d("Database: Bulk delete completed")
@@ -393,7 +391,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                 scope.launch {
                     try {
                         val updatedProfile = profile.copy(emvCardData = updatedCard)
-                        cardManager.saveCardProfile(updatedProfile)
+                        cardManager.updateCardProfile(updatedProfile)
                         cardProfiles = cardManager.getAllCardProfiles()
                         showEditDialog = null
                         Timber.d("Database: Updated card profile: ${updatedProfile.id}")

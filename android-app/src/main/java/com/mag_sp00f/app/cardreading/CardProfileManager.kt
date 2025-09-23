@@ -65,4 +65,80 @@ class CardProfileManager {
         cardProfiles.removeAll { it.id == id }
         Timber.d("🗑️ Card profile deleted: $id")
     }
+    
+    /**
+     * Update existing card profile
+     */
+    fun updateCardProfile(updatedProfile: CardProfile) {
+        val index = cardProfiles.indexOfFirst { it.id == updatedProfile.id }
+        if (index >= 0) {
+            cardProfiles[index] = updatedProfile
+            Timber.d("📝 Card profile updated: ${updatedProfile.id}")
+        } else {
+            cardProfiles.add(updatedProfile)
+            Timber.d("➕ Card profile added as new: ${updatedProfile.id}")
+        }
+    }
+    
+    /**
+     * Search card profiles by query string
+     */
+    fun searchCardProfiles(query: String): List<CardProfile> {
+        if (query.isBlank()) return cardProfiles.toList()
+        
+        return cardProfiles.filter { profile ->
+            val pan = profile.emvCardData.pan ?: ""
+            val cardholderName = profile.emvCardData.cardholderName ?: ""
+            val applicationLabel = profile.emvCardData.applicationLabel
+            
+            pan.contains(query, ignoreCase = true) ||
+            cardholderName.contains(query, ignoreCase = true) ||
+            applicationLabel.contains(query, ignoreCase = true)
+        }
+    }
+    
+    /**
+     * Clear all card profiles
+     */
+    fun clearAllProfiles() {
+        val count = cardProfiles.size
+        cardProfiles.clear()
+        Timber.d("🧹 Cleared $count card profiles")
+    }
+    
+    /**
+     * Get card profile by ID
+     */
+    fun getCardProfileById(id: String): CardProfile? {
+        return cardProfiles.find { it.id == id }
+    }
+    
+    /**
+     * Export all profiles to JSON string
+     */
+    fun exportToJson(): String {
+        // Simplified JSON export for demo
+        val profiles = cardProfiles.map { profile ->
+            """
+            {
+                "id": "${profile.id}",
+                "pan": "${profile.emvCardData.pan ?: ""}",
+                "cardholderName": "${profile.emvCardData.cardholderName ?: ""}",
+                "track2": "${profile.emvCardData.track2Data ?: ""}",
+                "apduLogs": ${profile.apduLogs.size},
+                "createdAt": "${profile.createdTimestamp}"
+            }
+            """.trimIndent()
+        }
+        return "[${profiles.joinToString(",\n")}]"
+    }
+    
+    /**
+     * Import profiles from JSON string (simplified)
+     */
+    fun importFromJson(jsonString: String): Int {
+        // Simplified import - just log for now
+        Timber.d("📥 Import requested with ${jsonString.length} chars")
+        return 0 // Would parse and add profiles in real implementation
+    }
 }

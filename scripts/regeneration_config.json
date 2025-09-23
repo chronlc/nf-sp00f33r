@@ -1,0 +1,18 @@
+{
+    "corruption_patterns": [
+        "import\\s+[^\\n]+\\nimport\\s+[^\\n]+",
+        "def\\s+(\\w+)[^\\n]*\\n[\\s\\S]*?def\\s+\\1",
+        "class\\s+(\\w+)[^\\n]*\\n[\\s\\S]*?class\\s+\\1",
+        "package\\s+[^\\n]+\\npackage\\s+",
+        "fun\\s+(\\w+)[^\\n]*\\n[\\s\\S]*?fun\\s+\\1",
+        "//\\s*TODO[^\\n]*\\n[\\s\\S]*?//\\s*TODO"
+    ],
+    "auto_regenerate_threshold": 0.7,
+    "backup_retention_days": 30,
+    "max_file_size_mb": 10,
+    "supported_languages": [".kt", ".java", ".py", ".xml", ".gradle"],
+    "elite_mode": true,
+    "hacker_logging": true,
+    "mag_spoof_integration": true,
+    "rate_limit_optimization": true
+}

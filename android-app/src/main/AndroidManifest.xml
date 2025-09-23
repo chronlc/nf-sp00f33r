@@ -40,16 +40,23 @@
         android:theme="@style/Theme.MagSp00f"
         tools:targetApi="31">
 
-        <!-- Main Activity with Navigation Drawer -->
+        <!-- Splash Screen Activity -->
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.SplashActivity"
             android:exported="true"
-            android:launchMode="singleTop"
-            android:theme="@style/Theme.MagSp00f">
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <!-- Main Activity with Navigation Drawer -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.MagSp00f">
             
             <!-- DISABLED: NFC Intent Filters - Let CardReadingFragment control NFC when START clicked -->
             <!--

@@ -1,0 +1,142 @@
+package com.mag_sp00f.app.cardreading
+
+import java.util.*
+
+data class EmvCardData(
+    val tagId: String,
+    val cardType: CardType,
+    val readingTimestamp: Date = Date(),
+    val aids: List<String> = emptyList(),
+    val selectedAid: String? = null,
+    val applicationLabel: String? = null,
+    val pan: String? = null,
+    val cardholderName: String? = null,
+    val expirationDate: String? = null,
+    val track2EquivalentData: String? = null,
+    val track2Data: Track2Data? = null,
+    val aip: String? = null,
+    val afl: String? = null,
+    val pdol: String? = null,
+    val cdol1: String? = null,
+    val cdol2: String? = null,
+    val applicationCryptogram: String? = null,
+    val issuerApplicationData: String? = null,
+    val staticDataAuthenticationTagList: String? = null,
+    val dynamicDataAuthenticationTagList: String? = null,
+    val certificationAuthorityPublicKeyIndex: String? = null,
+    val apduLogs: List<ApduLogEntry> = emptyList(),
+    val commonEmvTags: CommonEmvTags? = null,
+    val attackCompatibility: AttackCompatibilityResult? = null,
+    
+    // Additional properties required by other classes
+    val cardData: Map<String, String> = emptyMap(),
+    val profileId: String = UUID.randomUUID().toString(),
+    val overallSuccessRate: Double = 0.0,
+    val compatibleAttacks: Map<String, Boolean> = emptyMap(),
+    val recommendedAttacks: List<AttackProfile> = emptyList(),
+    val missingDataTags: List<String> = emptyList(),
+    val lastUsed: Long = System.currentTimeMillis()
+) {
+    fun isComplete(): Boolean {
+        return pan != null && 
+               expirationDate != null && 
+               aids.isNotEmpty() && 
+               (track2EquivalentData != null || aip != null)
+    }
+    
+    fun getFormattedSummary(): String = "EMV Card: ${cardType} - ${pan ?: "Unknown"}"
+    fun getAttackDataRequirements(): List<String> = listOf("PAN", "Expiry", "AIP")
+    
+    // Additional methods required by other classes
+    fun toEmulationProfile(): EmulationCardProfile = EmulationCardProfile(
+        id = profileId,
+        name = cardholderName ?: "Card ${tagId.take(8)}",
+        emvCardData = this
+    )
+    
+    fun getAttackRecommendationScore(): Double = overallSuccessRate
+    
+    fun analyze(): AttackCompatibilityResult = attackCompatibility ?: AttackCompatibilityAnalyzer.analyzeCompatibility(this)
+}
+
+data class ApduLogEntry(
+    val timestamp: Long,
+    val command: String,
+    val response: String,
+    val commandName: String,
+    val statusWord: String,
+    val executionTimeMs: Long = 0,
+    val readerType: String
+)
+
+data class CommonEmvTags(
+    val tag5A: String? = null,
+    val tag5F20: String? = null,
+    val tag5F24: String? = null,
+    val tag57: String? = null,
+    val tag82: String? = null,
+    val tag94: String? = null
+)
+
+enum class CardType(val displayName: String) {
+    VISA("VISA"), MASTERCARD("MasterCard"), AMEX("American Express"), DISCOVER("Discover"), UNKNOWN("Unknown")
+}
+
+data class Track2Data(
+    val pan: String,
+    val expirationDate: String,
+    val serviceCode: String,
+    val discretionaryData: String
+)
+
+data class EmulationCardProfile(
+    val id: String,
+    val name: String,
+    val emvCardData: EmvCardData
+) {
+    fun toEmulationProfile(): EmulationCardProfile = this
+}
+
+data class AttackCompatibilityResult(
+    val supportedAttacks: List<String>,
+    val recommendations: List<String>,
+    val compatibilityScore: Int
+)
+
+object AttackCompatibilityAnalyzer {
+    fun analyzeCompatibility(cardData: EmvCardData): AttackCompatibilityResult {
+        return AttackCompatibilityResult(
+            supportedAttacks = listOf("Track2 Clone", "MSD Replay"),
+            recommendations = listOf("Use MSD mode for maximum compatibility"),
+            compatibilityScore = 85
+        )
+    }
+}
+
+data class AttackProfile(
+    val name: String,
+    val description: String,
+    val compatibilityScore: Double,
+    val requiredTags: List<String> = emptyList(),
+    val isRecommended: Boolean = false
+)
+
+enum class ReaderType(val displayName: String) {
+    NFC("NFC"), PN532("PN532"), AUTO("Auto")
+}
+
+enum class ReadingState {
+    IDLE, INITIALIZING, READING, PROCESSING, COMPLETED, ERROR
+}
+
+data class ReadingResult(
+    val success: Boolean,
+    val cardData: EmvCardData? = null,
+    val error: String? = null
+)
+
+data class ReadingProgress(
+    val stage: String,
+    val progress: Int,
+    val message: String
+)

@@ -5,9 +5,9 @@
             "label": "Build Android Debug",
             "type": "shell",
             "command": "./gradlew",
-            "args": ["assembleDebug"],
+            "args": ["android-app:assembleDebug"],
             "options": {
-                "cwd": "${workspaceFolder}/android-app"
+                "cwd": "${workspaceFolder}"
             },
             "group": {
                 "kind": "build",

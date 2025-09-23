@@ -1,0 +1,216 @@
+{
+  "timestamp": "2025-09-21 20:36:19",
+  "total_tests": 16,
+  "passed_tests": 14,
+  "failed_tests": 0,
+  "warnings": 2,
+  "errors": [],
+  "categories": {
+    "build_system": {
+      "tests": [
+        {
+          "name": "gradle_wrapper_integrity",
+          "status": "PASS",
+          "details": "Gradle wrapper functional"
+        },
+        {
+          "name": "build_success",
+          "status": "PASS",
+          "details": "Clean build successful"
+        },
+        {
+          "name": "apk_generation",
+          "status": "PASS",
+          "details": "APK size: 14.71MB"
+        }
+      ],
+      "status": "PASS"
+    },
+    "ui_components": {
+      "tests": [
+        {
+          "name": "layout_completeness",
+          "status": "PASS",
+          "details": {
+            "activity_main.xml": "VALID",
+            "fragment_card_reading.xml": "VALID",
+            "fragment_card_database.xml": "VALID",
+            "fragment_home.xml": "VALID",
+            "fragment_emulation.xml": "VALID",
+            "fragment_attack_menu.xml": "VALID",
+            "item_apdu_log.xml": "VALID",
+            "item_card_profile.xml": "VALID",
+            "item_recent_card.xml": "VALID"
+          },
+          "summary": "All 9 layouts present and valid"
+        },
+        {
+          "name": "drawable_resources",
+          "status": "PASS",
+          "details": "All 5 navigation icons present"
+        },
+        {
+          "name": "fragment_classes",
+          "status": "PASS",
+          "details": {
+            "MainActivity.kt": "PRODUCTION_GRADE",
+            "CardReadingFragment.kt": "NEEDS_COMPLETION",
+            "CardDatabaseFragment.kt": "PRODUCTION_GRADE",
+            "HomeFragment.kt": "PRODUCTION_GRADE",
+            "EmulationFragment.kt": "PRODUCTION_GRADE",
+            "AttackMenuFragment.kt": "PRODUCTION_GRADE"
+          },
+          "summary": "Fragments: 6/6 present"
+        }
+      ],
+      "status": "PASS"
+    },
+    "database_layer": {
+      "tests": [
+        {
+          "name": "data_models",
+          "status": "PASS",
+          "details": {
+            "EmvCardData.kt": "PRODUCTION_GRADE",
+            "ApduLogEntry.kt": "IMPLEMENTED",
+            "CardProfile.kt": "PRODUCTION_GRADE"
+          }
+        },
+        {
+          "name": "profile_manager",
+          "status": "PASS",
+          "details": {
+            "required_methods": [
+              "addCardProfile",
+              "getAllCardProfiles",
+              "exportAllProfiles",
+              "exportProfile",
+              "removeCardProfile"
+            ],
+            "present_methods": [
+              "addCardProfile",
+              "getAllCardProfiles",
+              "exportAllProfiles",
+              "exportProfile",
+              "removeCardProfile"
+            ],
+            "missing_methods": []
+          }
+        }
+      ],
+      "status": "PASS"
+    },
+    "attack_modules": {
+      "tests": [
+        {
+          "name": "attack_documentation",
+          "status": "PASS",
+          "details": {
+            "emv_attack_reference.md": "EXISTS (16357 chars)",
+            "attack_module_architecture.md": "EXISTS (17090 chars)",
+            "attack_configuration_guide.md": "EXISTS (19400 chars)",
+            "emv_attack_research_bibliography.md": "EXISTS (15546 chars)"
+          }
+        },
+        {
+          "name": "emv_scripts",
+          "status": "PASS",
+          "details": {
+            "pn532_terminal.py": "MULTI_WORKFLOW_CAPABLE",
+            "pn532_terminal_rapid.py": "MULTI_WORKFLOW_CAPABLE"
+          }
+        }
+      ],
+      "status": "PASS"
+    },
+    "hardware_integration": {
+      "tests": [
+        {
+          "name": "pn532_integration",
+          "status": "PASS",
+          "details": {
+            "scripts_found": 9,
+            "scripts": [
+              "pn532_emv_workflows.py",
+              "pn532_terminal_blazing.py",
+              "pn532_terminal_base.py",
+              "pn532_live_terminal.py",
+              "pn532_terminal_rapid.py",
+              "pn532_direct_test.py",
+              "pn532_terminal.py",
+              "pn532_emv_flow.py",
+              "pn532_emv_spoof.py"
+            ],
+            "ultra_fast_capable": true
+          }
+        },
+        {
+          "name": "android_nfc",
+          "status": "WARN",
+          "details": {
+            "nfc_permission": false,
+            "hce_service": false,
+            "nfc_tech_filter": true
+          }
+        }
+      ],
+      "status": "PASS"
+    },
+    "security_analysis": {
+      "tests": [
+        {
+          "name": "no_hardcoded_data",
+          "status": "WARN",
+          "details": {
+            "files_scanned": 39,
+            "violations": [
+              "EmvCardDataLoader.kt: contains 'test_card'",
+              "CardProfileManager.kt: contains 'simulation'",
+              "CardReadingFragment.kt: contains 'simulation'",
+              "HomeFragment.kt: contains 'simulation'",
+              "CardManipulationManager.kt: contains 'fake'",
+              "ApduFlowHooks.kt: contains 'simulation'"
+            ]
+          }
+        },
+        {
+          "name": "elite_theme_compliance",
+          "status": "PASS",
+          "details": {
+            "elite_themed_files": 18,
+            "examples": [
+              "EmvAttackEmulationManager.kt",
+              "CardReadingCallback.kt",
+              "NfcCardReader.kt",
+              "Pn532CardReader.kt",
+              "CardProfileManager.kt"
+            ]
+          }
+        }
+      ],
+      "status": "PASS"
+    },
+    "performance_metrics": {
+      "tests": [
+        {
+          "name": "build_performance",
+          "status": "PASS",
+          "details": {
+            "build_time_seconds": 8.6,
+            "build_success": true,
+            "performance_rating": "FAST"
+          }
+        },
+        {
+          "name": "apk_size_analysis",
+          "status": "PASS",
+          "details": {
+            "apk_size_mb": 14.71,
+            "size_rating": "OPTIMAL"
+          }
+        }
+      ],
+      "status": "PASS"
+    }
+  }
+}

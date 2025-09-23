@@ -1,0 +1,218 @@
+package com.mag_sp00f.app.cardreading
+
+import android.app.Activity
+import android.nfc.NfcAdapter
+import android.nfc.Tag
+import android.nfc.tech.IsoDep
+import android.util.Log
+import kotlinx.coroutines.withTimeout
+import java.util.Date
+
+class NfcCardReader(private val activity: Activity) {
+    
+    companion object {
+        private const val TAG = "NfcCardReader"
+        private const val PPSE_SELECT = "00A404000E325041592E5359532E4444463031"
+        private const val READ_TIMEOUT = 30000L // 30 seconds
+    }
+    
+    private val nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(activity)
+    
+    suspend fun readCard(): EmvCardData {
+        return withTimeout(READ_TIMEOUT) {
+            Log.d(TAG, "Starting REAL NFC card reading...")
+            
+            if (nfcAdapter == null) {
+                throw RuntimeException("NFC not supported on this device")
+            }
+            
+            if (!nfcAdapter.isEnabled) {
+                throw RuntimeException("NFC is disabled. Please enable NFC in settings")
+            }
+            
+            // Wait for real NFC card tap
+            val tag = waitForCardTap()
+            val isoDep = IsoDep.get(tag) ?: throw RuntimeException("Card does not support ISO-DEP")
+            
+            try {
+                isoDep.connect()
+                isoDep.timeout = 5000
+                
+                val cardData = performEmvReading(isoDep)
+                Log.d(TAG, "REAL NFC reading completed successfully")
+                return@withTimeout cardData
+                
+            } finally {
+                isoDep.close()
+            }
+        }
+    }
+    
+    private suspend fun waitForCardTap(): Tag {
+        // Implementation requires NFC foreground dispatch
+        throw RuntimeException("Card tap required - ensure NFC foreground dispatch is active")
+    }
+    
+    private fun performEmvReading(isoDep: IsoDep): EmvCardData {
+        val apduLogs = mutableListOf<ApduLogEntry>()
+        val cardId = "NFC_${System.currentTimeMillis()}"
+        
+        try {
+            // SELECT PPSE
+            val ppseCommand = hexStringToByteArray(PPSE_SELECT)
+            val startTime = System.currentTimeMillis()
+            val ppseResponse = isoDep.transceive(ppseCommand)
+            val execTime = System.currentTimeMillis() - startTime
+            
+            apduLogs.add(ApduLogEntry(
+                timestamp = System.currentTimeMillis(),
+                command = PPSE_SELECT,
+                response = byteArrayToHexString(ppseResponse),
+                commandName = "SELECT PPSE",
+                statusWord = extractStatusWord(ppseResponse),
+                executionTimeMs = execTime,
+                readerType = "NFC"
+            ))
+            
+            if (!isSuccessResponse(ppseResponse)) {
+                throw RuntimeException("PPSE selection failed: ${extractStatusWord(ppseResponse)}")
+            }
+            
+            // Parse PPSE response for AIDs
+            val aids = parsePpseResponse(ppseResponse)
+            if (aids.isEmpty()) {
+                throw RuntimeException("No payment applications found in PPSE")
+            }
+            
+            // Select first AID and read EMV data
+            val selectedAid = aids.first()
+            val emvData = selectAidAndReadData(isoDep, selectedAid, apduLogs)
+            
+            return EmvCardData(
+                tagId = cardId,
+                cardType = determineCardType(selectedAid, emvData),
+                readingTimestamp = Date(),
+                aids = aids,
+                selectedAid = selectedAid,
+                apduLogs = apduLogs,
+                pan = emvData["5A"],
+                cardholderName = emvData["5F20"],
+                expirationDate = emvData["5F24"],
+                track2EquivalentData = emvData["57"],
+                aip = emvData["82"],
+                afl = emvData["94"],
+                pdol = emvData["9F38"],
+                applicationLabel = emvData["50"]
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Real NFC reading failed", e)
+            throw RuntimeException("EMV reading failed: ${e.message}")
+        }
+    }
+    
+    private fun selectAidAndReadData(isoDep: IsoDep, aid: String, apduLogs: MutableList<ApduLogEntry>): Map<String, String> {
+        val emvData = mutableMapOf<String, String>()
+        
+        // SELECT AID
+        val selectAidCommand = "00A4040${(aid.length/2).toString(16).padStart(2, '0')}$aid"
+        val aidResponse = transceiveAndLog(isoDep, selectAidCommand, "SELECT AID", apduLogs)
+        
+        if (!isSuccessResponse(aidResponse)) {
+            throw RuntimeException("AID selection failed: ${extractStatusWord(aidResponse)}")
+        }
+        
+        // Parse FCI template
+        parseFciTemplate(aidResponse, emvData)
+        
+        // GET PROCESSING OPTIONS (GPO)
+        val pdol = emvData["9F38"] ?: ""
+        val gpoCommand = buildGpoCommand(pdol)
+        val gpoResponse = transceiveAndLog(isoDep, gpoCommand, "GET PROCESSING OPTIONS", apduLogs)
+        
+        if (isSuccessResponse(gpoResponse)) {
+            parseGpoResponse(gpoResponse, emvData)
+            
+            // READ RECORDs based on AFL
+            val afl = emvData["94"]
+            if (afl != null) {
+                readRecordsFromAfl(isoDep, afl, emvData, apduLogs)
+            }
+        }
+        
+        return emvData
+    }
+    
+    private fun transceiveAndLog(isoDep: IsoDep, command: String, commandName: String, apduLogs: MutableList<ApduLogEntry>): ByteArray {
+        val startTime = System.currentTimeMillis()
+        val commandBytes = hexStringToByteArray(command)
+        val response = isoDep.transceive(commandBytes)
+        val execTime = System.currentTimeMillis() - startTime
+        
+        apduLogs.add(ApduLogEntry(
+            timestamp = System.currentTimeMillis(),
+            command = command,
+            response = byteArrayToHexString(response),
+            commandName = commandName,
+            statusWord = extractStatusWord(response),
+            executionTimeMs = execTime,
+            readerType = "NFC"
+        ))
+        
+        return response
+    }
+    
+    private fun hexStringToByteArray(s: String): ByteArray {
+        val len = s.length
+        val data = ByteArray(len / 2)
+        for (i in 0 until len step 2) {
+            data[i / 2] = ((Character.digit(s[i], 16) shl 4) + Character.digit(s[i + 1], 16)).toByte()
+        }
+        return data
+    }
+    
+    private fun byteArrayToHexString(bytes: ByteArray): String {
+        return bytes.joinToString("") { "%02X".format(it) }
+    }
+    
+    private fun isSuccessResponse(response: ByteArray): Boolean {
+        return response.size >= 2 && response[response.size - 2] == 0x90.toByte() && response[response.size - 1] == 0x00.toByte()
+    }
+    
+    private fun extractStatusWord(response: ByteArray): String {
+        if (response.size < 2) return "----"
+        return "%02X%02X".format(response[response.size - 2], response[response.size - 1])
+    }
+    
+    private fun parsePpseResponse(response: ByteArray): List<String> {
+        // Basic TLV parsing for AIDs - implementation needed
+        return listOf("A0000000031010") // Placeholder - needs real TLV parser
+    }
+    
+    private fun parseFciTemplate(response: ByteArray, emvData: MutableMap<String, String>) {
+        // Parse FCI template for EMV tags - implementation needed
+    }
+    
+    private fun buildGpoCommand(pdol: String): String {
+        // Build GPO command based on PDOL - implementation needed
+        return "80A80000238321270000000000000000100000000000000009780000000000097823030100"
+    }
+    
+    private fun parseGpoResponse(response: ByteArray, emvData: MutableMap<String, String>) {
+        // Parse GPO response for AIP and AFL - implementation needed
+    }
+    
+    private fun readRecordsFromAfl(isoDep: IsoDep, afl: String, emvData: MutableMap<String, String>, apduLogs: MutableList<ApduLogEntry>) {
+        // Read records based on AFL - implementation needed
+    }
+    
+    private fun determineCardType(aid: String, emvData: Map<String, String>): CardType {
+        return when {
+            aid.startsWith("A0000000031010") -> CardType.VISA
+            aid.startsWith("A0000000041010") -> CardType.MASTERCARD
+            aid.startsWith("A0000000050001") -> CardType.AMEX
+            aid.startsWith("A0000001523010") -> CardType.DISCOVER
+            else -> CardType.UNKNOWN
+        }
+    }
+}

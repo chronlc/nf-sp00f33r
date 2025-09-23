@@ -1,0 +1,44 @@
+{
+  "task_automation": {
+    "enforce_safe_operations": true,
+    "corruption_prevention": "mandatory",
+    "task_routing": {
+      "fix_emv_parser": {
+        "script": "safe_file_writer.sh",
+        "max_lines": 300,
+        "validation": "kotlin_syntax"
+      },
+      "fix_data_model": {
+        "script": "safe_file_writer.sh", 
+        "max_lines": 100,
+        "validation": "data_class"
+      },
+      "fix_ui_fragment": {
+        "script": "safe_file_writer.sh",
+        "max_lines": 400,
+        "validation": "fragment_interface"
+      },
+      "fix_xml_layout": {
+        "script": "safe_file_writer.sh",
+        "max_lines": 200,
+        "validation": "xml_syntax"
+      },
+      "fix_adapter": {
+        "script": "safe_file_writer.sh",
+        "max_lines": 150,
+        "validation": "adapter_pattern"
+      },
+      "test_build": {
+        "script": "corruption_detector.py",
+        "validation": "build_success"
+      }
+    },
+    "banned_operations": [
+      "create_file",
+      "append_operations", 
+      "unsafe_edits",
+      "mass_replace"
+    ],
+    "success_criteria": "BUILD_SUCCESSFUL_ONLY"
+  }
+}

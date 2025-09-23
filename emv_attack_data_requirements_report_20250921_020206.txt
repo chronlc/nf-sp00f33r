@@ -1,0 +1,314 @@
+====================================================================================================
+🎯 EMV ATTACK DATA REQUIREMENTS ANALYSIS REPORT
+====================================================================================================
+Test Timestamp: 2025-09-21T02:02:06.108958
+EMV Data Source: emv.html VISA TEST card
+Total Attacks Tested: 10
+Total Profiles Tested: 5
+
+📊 CARD PROFILE RANKINGS
+--------------------------------------------------
+1. visa_test_complete: 100.0% average compatibility
+   Completeness: 100%
+
+2. visa_test_standard: 96.5% average compatibility
+   Completeness: 85%
+
+3. mastercard_test: 91.7% average compatibility
+   Completeness: 75%
+
+4. visa_test_basic: 71.3% average compatibility
+   Completeness: 60%
+
+5. visa_test_minimal: 27.5% average compatibility
+   Completeness: 30%
+
+🚨 ATTACK MODULE ANALYSIS
+--------------------------------------------------
+Attack: Track2 Spoofing
+Average Data Score: 94.4%
+Best Profile: visa_test_complete
+Requirements: 5 EMV fields
+
+Attack: Aip Force Offline
+Average Data Score: 86.4%
+Best Profile: visa_test_complete
+Requirements: 4 EMV fields
+
+Attack: Cryptogram Downgrade
+Average Data Score: 85.4%
+Best Profile: visa_test_complete
+Requirements: 3 EMV fields
+
+Attack: Amount Manipulation
+Average Data Score: 85.2%
+Best Profile: visa_test_complete
+Requirements: 4 EMV fields
+
+Attack: Failed Cryptogram Attack
+Average Data Score: 81.6%
+Best Profile: visa_test_complete
+Requirements: 4 EMV fields
+
+Attack: Cvm Bypass
+Average Data Score: 76.8%
+Best Profile: visa_test_complete
+Requirements: 4 EMV fields
+
+Attack: Advanced Force Offline
+Average Data Score: 71.4%
+Best Profile: visa_test_complete
+Requirements: 4 EMV fields
+
+Attack: Advanced Cryptogram
+Average Data Score: 66.2%
+Best Profile: visa_test_complete
+Requirements: 5 EMV fields
+
+Attack: Enhanced Cvm Bypass
+Average Data Score: 65.8%
+Best Profile: visa_test_complete
+Requirements: 4 EMV fields
+
+Attack: Ppse Aid Poisoning
+Average Data Score: 60.8%
+Best Profile: visa_test_complete
+Requirements: 4 EMV fields
+
+📋 DETAILED TEST RESULTS
+--------------------------------------------------
+Profile: visa_test_complete
+==============================
+✅ ppse_aid_poisoning: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ aip_force_offline: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ track2_spoofing: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ cryptogram_downgrade: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ cvm_bypass: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ advanced_force_offline: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ enhanced_cvm_bypass: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ amount_manipulation: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ advanced_cryptogram: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ failed_cryptogram_attack: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+Profile: visa_test_standard
+==============================
+✅ ppse_aid_poisoning: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ aip_force_offline: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ track2_spoofing: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ cryptogram_downgrade: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ cvm_bypass: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ advanced_force_offline: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ enhanced_cvm_bypass: 80% data score
+   Missing fields: 1
+   Success factors: GOOD
+
+✅ amount_manipulation: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ advanced_cryptogram: 85% data score
+   Missing fields: 1
+   Success factors: EXCELLENT
+
+✅ failed_cryptogram_attack: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+Profile: visa_test_basic
+==============================
+⚠️ ppse_aid_poisoning: 52% data score
+   Missing fields: 1
+   Success factors: POOR
+
+⚠️ aip_force_offline: 66% data score
+   Missing fields: 1
+   Success factors: POOR
+
+✅ track2_spoofing: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ cryptogram_downgrade: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+⚠️ cvm_bypass: 61% data score
+   Missing fields: 1
+   Success factors: POOR
+
+❌ advanced_force_offline: 38% data score
+   Missing fields: 2
+   Success factors: POOR
+
+⚠️ enhanced_cvm_bypass: 50% data score
+   Missing fields: 2
+   Success factors: POOR
+
+✅ amount_manipulation: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+⚠️ advanced_cryptogram: 61% data score
+   Missing fields: 2
+   Success factors: POOR
+
+✅ failed_cryptogram_attack: 85% data score
+   Missing fields: 1
+   Success factors: EXCELLENT
+
+Profile: visa_test_minimal
+==============================
+❌ ppse_aid_poisoning: 0% data score
+   Missing fields: 4
+   Success factors: POOR
+
+⚠️ aip_force_offline: 66% data score
+   Missing fields: 1
+   Success factors: POOR
+
+✅ track2_spoofing: 72% data score
+   Missing fields: 2
+   Success factors: GOOD
+
+❌ cryptogram_downgrade: 27% data score
+   Missing fields: 2
+   Success factors: POOR
+
+❌ cvm_bypass: 23% data score
+   Missing fields: 3
+   Success factors: POOR
+
+❌ advanced_force_offline: 19% data score
+   Missing fields: 3
+   Success factors: POOR
+
+❌ enhanced_cvm_bypass: 19% data score
+   Missing fields: 3
+   Success factors: POOR
+
+❌ amount_manipulation: 26% data score
+   Missing fields: 3
+   Success factors: POOR
+
+❌ advanced_cryptogram: 0% data score
+   Missing fields: 5
+   Success factors: POOR
+
+❌ failed_cryptogram_attack: 23% data score
+   Missing fields: 3
+   Success factors: POOR
+
+Profile: mastercard_test
+==============================
+⚠️ ppse_aid_poisoning: 52% data score
+   Missing fields: 1
+   Success factors: POOR
+
+✅ aip_force_offline: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ track2_spoofing: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ cryptogram_downgrade: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ cvm_bypass: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ advanced_force_offline: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ enhanced_cvm_bypass: 80% data score
+   Missing fields: 1
+   Success factors: GOOD
+
+✅ amount_manipulation: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+✅ advanced_cryptogram: 85% data score
+   Missing fields: 1
+   Success factors: EXCELLENT
+
+✅ failed_cryptogram_attack: 100% data score
+   Missing fields: 0
+   Success factors: EXCELLENT
+
+💡 OPTIMIZATION RECOMMENDATIONS
+--------------------------------------------------
+Profile Optimization:
+  best_profile: visa_test_complete (100.0)
+    → Use as reference for optimal EMV data configuration
+  worst_profile: visa_test_minimal (27.5)
+    → Requires significant EMV data enhancement
+
+Attack Analysis:
+  most_demanding_attack: track2_spoofing (N/A)
+    → Requires comprehensive EMV data for success
+  least_demanding_attack: ppse_aid_poisoning (N/A)
+    → Works with minimal EMV data
+
+Universal Recommendations:
+  • Use emv.html VISA TEST data as baseline - provides 85%+ compatibility
+  • Add multiple AIDs (VISA + MasterCard + US Debit) for maximum attack coverage
+  • Implement CDA authentication support for advanced cryptogram attacks
+  • Enable contactless + biometric CVM for enhanced CVM bypass attacks
+  • Set high transaction limits (>$500 offline) for advanced force offline attacks
+
+====================================================================================================
+Report generated by Mag-Sp00f EMV Attack Data Requirements Tester
+Based on real EMV data from emv.html VISA TEST card
+====================================================================================================
