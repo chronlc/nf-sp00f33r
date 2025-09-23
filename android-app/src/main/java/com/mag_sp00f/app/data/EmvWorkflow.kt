@@ -21,7 +21,7 @@ data class EmvWorkflow(
          */
         val STANDARD_CONTACTLESS = EmvWorkflow(
             id = "standard",
-            name = "��‍☠️ Standard Contactless",
+            name = "Standard Contactless",
             description = "Standard EMV contactless workflow with basic data retrieval",
             ttqValue = "27000000", // Standard contactless TTQ
             terminalCapabilities = "E0F8C8", // Standard capabilities
@@ -32,7 +32,7 @@ data class EmvWorkflow(
         
         val OFFLINE_FORCED = EmvWorkflow(
             id = "offline_forced",
-            name = "⚡ Offline Pin Forced",
+            name = "Offline Pin Forced",
             description = "Force offline PIN verification to extract additional cryptographic data",
             ttqValue = "2F000000", // Force offline PIN + additional flags
             terminalCapabilities = "E0F8C8", // Same capabilities
@@ -43,7 +43,7 @@ data class EmvWorkflow(
         
         val CVM_REQUIRED = EmvWorkflow(
             id = "cvm_required", 
-            name = "🔐 CVM Required",
+            name = "CVM Required",
             description = "Enforce cardholder verification to extract CVM data and preferences",
             ttqValue = "67000000", // CVM required + signature
             terminalCapabilities = "E0F8C8", // Full capabilities
@@ -54,7 +54,7 @@ data class EmvWorkflow(
         
         val ISSUER_AUTHENTICATION = EmvWorkflow(
             id = "issuer_auth",
-            name = "🏛️ Issuer Authentication",
+            name = "Issuer Authentication",
             description = "Trigger issuer authentication to extract cryptographic keys and certificates",
             ttqValue = "A7000000", // Issuer auth required
             terminalCapabilities = "E0F8C8", // Crypto capabilities
@@ -65,7 +65,7 @@ data class EmvWorkflow(
         
         val ENHANCED_DISCOVERY = EmvWorkflow(
             id = "enhanced_discovery",
-            name = "🔍 Enhanced Discovery", 
+            name = "Enhanced Discovery", 
             description = "Maximum data extraction workflow for comprehensive EMV analysis",
             ttqValue = "FF800000", // All flags enabled for maximum data
             terminalCapabilities = "E0F8C8", // Full terminal capabilities
@@ -76,7 +76,7 @@ data class EmvWorkflow(
         
         val CUSTOM_RESEARCH = EmvWorkflow(
             id = "custom_research",
-            name = "🧪 Custom Research",
+            name = "Custom Research",
             description = "Customizable workflow for specific EMV security research",
             ttqValue = "27000000", // Default, user customizable
             terminalCapabilities = "E0F8C8", // Default, user customizable  

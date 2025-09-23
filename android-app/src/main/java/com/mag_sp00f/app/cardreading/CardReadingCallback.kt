@@ -31,15 +31,15 @@ interface CardReadingCallback {
     /**
      * Called for each APDU command/response during reading (real-time updates)
      */
-    fun onApduExchanged(apduEntry: ApduLogEntry) {}
+    fun onApduExchanged(apduEntry: ApduLogEntry)
     
     /**
      * Called when card is detected but before reading starts
      */
-    fun onCardDetected() {}
+    fun onCardDetected()
     
     /**
      * Called with progress updates during EMV workflow
      */
-    fun onProgress(step: String, progress: Int, total: Int) {}
+    fun onProgress(step: String, progress: Int, total: Int)
 }

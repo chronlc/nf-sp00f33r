@@ -28,8 +28,13 @@ import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
 import com.mag_sp00f.app.R
 import com.mag_sp00f.app.ui.theme.MagSp00fTheme
+import com.mag_sp00f.app.cardreading.CardProfileManager
+import com.mag_sp00f.app.models.CardProfile
+import timber.log.Timber
 
 class AnalysisFragment : Fragment() {
+
+    private lateinit var cardProfileManager: CardProfileManager
 
     companion object {
         private const val TAG = "AnalysisFragment"
@@ -40,6 +45,8 @@ class AnalysisFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        cardProfileManager = CardProfileManager.getInstance()
+        
         return ComposeView(requireContext()).apply {
             setContent {
                 MagSp00fTheme {
@@ -53,6 +60,20 @@ class AnalysisFragment : Fragment() {
     @Composable
     private fun AnalysisScreen() {
         val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+        
+        // Get real card data for analysis
+        var cardProfiles by remember { mutableStateOf<List<CardProfile>>(emptyList()) }
+        var selectedCard by remember { mutableStateOf<CardProfile?>(null) }
+        
+        // Load cards on startup
+        LaunchedEffect(Unit) {
+            cardProfiles = if (::cardProfileManager.isInitialized) {
+                cardProfileManager.getAllCardProfiles()
+            } else {
+                emptyList()
+            }
+            selectedCard = cardProfiles.firstOrNull()
+        }
 
         Scaffold(
             topBar = {
@@ -86,65 +107,7 @@ class AnalysisFragment : Fragment() {
                     scrollBehavior = scrollBehavior
                 )
             },
-            bottomBar = {
-                NavigationBar(
-                    containerColor = Color(0xFF161B22),
-                    contentColor = Color(0xFF00FF41)
-                ) {
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.CreditCard, contentDescription = "Read") },
-                        label = { Text("Read", fontSize = 10.sp) },
-                        selected = false,
-                        onClick = { },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFF00FF41),
-                            selectedTextColor = Color(0xFF00FF41),
-                            indicatorColor = Color(0xFF21262D),
-                            unselectedIconColor = Color(0xFF7D8590),
-                            unselectedTextColor = Color(0xFF7D8590)
-                        )
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Security, contentDescription = "Emulate") },
-                        label = { Text("Emulate", fontSize = 10.sp) },
-                        selected = false,
-                        onClick = { },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFF00FF41),
-                            selectedTextColor = Color(0xFF00FF41),
-                            indicatorColor = Color(0xFF21262D),
-                            unselectedIconColor = Color(0xFF7D8590),
-                            unselectedTextColor = Color(0xFF7D8590)
-                        )
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Storage, contentDescription = "Database") },
-                        label = { Text("Database", fontSize = 10.sp) },
-                        selected = false,
-                        onClick = { },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFF00FF41),
-                            selectedTextColor = Color(0xFF00FF41),
-                            indicatorColor = Color(0xFF21262D),
-                            unselectedIconColor = Color(0xFF7D8590),
-                            unselectedTextColor = Color(0xFF7D8590)
-                        )
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Analytics, contentDescription = "Analysis") },
-                        label = { Text("Analysis", fontSize = 10.sp) },
-                        selected = true,
-                        onClick = { },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFF00FF41),
-                            selectedTextColor = Color(0xFF00FF41),
-                            indicatorColor = Color(0xFF21262D),
-                            unselectedIconColor = Color(0xFF7D8590),
-                            unselectedTextColor = Color(0xFF7D8590)
-                        )
-                    )
-                }
-            },
+
             containerColor = Color(0xFF0D1117)
         ) { paddingValues ->
             Box(
@@ -203,7 +166,7 @@ class AnalysisFragment : Fragment() {
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Advanced Cryptographic & TLV Analysis",
+                                text = "Cards: ${cardProfiles.size} | Selected: ${selectedCard?.emvCardData?.detectCardType()?.name ?: "None"}",
                                 fontSize = 14.sp,
                                 color = Color.White,
                                 textAlign = TextAlign.Center,
@@ -218,7 +181,7 @@ class AnalysisFragment : Fragment() {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = { },
+                            onClick = { analyzeData() },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF00FF41),
@@ -231,7 +194,7 @@ class AnalysisFragment : Fragment() {
                         }
 
                         Button(
-                            onClick = { },
+                            onClick = { exportAnalysis() },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF58A6FF),
@@ -265,10 +228,18 @@ class AnalysisFragment : Fragment() {
                                 modifier = Modifier.padding(bottom = 12.dp)
                             )
 
-                            AnalysisItem("AC (Auth Cryptogram)", "No data", Color(0xFF7D8590))
-                            AnalysisItem("TC (Transaction Certificate)", "No data", Color(0xFF7D8590))
-                            AnalysisItem("ATC (Transaction Counter)", "No data", Color(0xFF7D8590))
-                            AnalysisItem("UN (Unpredictable Number)", "No data", Color(0xFF7D8590))
+                            AnalysisItem("AC (Auth Cryptogram)", 
+                                selectedCard?.emvCardData?.emvTags?.get("9F26") ?: "No data", 
+                                if (selectedCard?.emvCardData?.emvTags?.containsKey("9F26") == true) Color(0xFF4CAF50) else Color(0xFF7D8590))
+                            AnalysisItem("TC (Transaction Certificate)", 
+                                selectedCard?.emvCardData?.emvTags?.get("9F34") ?: "No data", 
+                                if (selectedCard?.emvCardData?.emvTags?.containsKey("9F34") == true) Color(0xFF4CAF50) else Color(0xFF7D8590))
+                            AnalysisItem("ATC (Transaction Counter)", 
+                                selectedCard?.emvCardData?.applicationTransactionCounter ?: "No data", 
+                                if (!selectedCard?.emvCardData?.applicationTransactionCounter.isNullOrEmpty()) Color(0xFF4CAF50) else Color(0xFF7D8590))
+                            AnalysisItem("UN (Unpredictable Number)", 
+                                selectedCard?.emvCardData?.emvTags?.get("9F37") ?: "No data", 
+                                if (selectedCard?.emvCardData?.emvTags?.containsKey("9F37") == true) Color(0xFF4CAF50) else Color(0xFF7D8590))
                         }
                     }
 
@@ -293,10 +264,18 @@ class AnalysisFragment : Fragment() {
                                 modifier = Modifier.padding(bottom = 12.dp)
                             )
 
-                            AnalysisItem("Tag 0x57 (Track2)", "Waiting for card data", Color(0xFF7D8590))
-                            AnalysisItem("Tag 0x5F34 (PAN Sequence)", "Waiting for card data", Color(0xFF7D8590))
-                            AnalysisItem("Tag 0x82 (AIP)", "Waiting for card data", Color(0xFF7D8590))
-                            AnalysisItem("Tag 0x94 (AFL)", "Waiting for card data", Color(0xFF7D8590))
+                            AnalysisItem("Tag 0x57 (Track2)", 
+                                selectedCard?.emvCardData?.track2Data ?: "Waiting for card data", 
+                                if (!selectedCard?.emvCardData?.track2Data.isNullOrEmpty()) Color(0xFF4CAF50) else Color(0xFF7D8590))
+                            AnalysisItem("Tag 0x5F34 (PAN Sequence)", 
+                                selectedCard?.emvCardData?.emvTags?.get("5F34") ?: "Waiting for card data", 
+                                if (selectedCard?.emvCardData?.emvTags?.containsKey("5F34") == true) Color(0xFF4CAF50) else Color(0xFF7D8590))
+                            AnalysisItem("Tag 0x82 (AIP)", 
+                                selectedCard?.emvCardData?.applicationInterchangeProfile ?: "Waiting for card data", 
+                                if (!selectedCard?.emvCardData?.applicationInterchangeProfile.isNullOrEmpty()) Color(0xFF4CAF50) else Color(0xFF7D8590))
+                            AnalysisItem("Tag 0x94 (AFL)", 
+                                selectedCard?.emvCardData?.applicationFileLocator ?: "Waiting for card data", 
+                                if (!selectedCard?.emvCardData?.applicationFileLocator.isNullOrEmpty()) Color(0xFF4CAF50) else Color(0xFF7D8590))
                         }
                     }
                 }
@@ -326,6 +305,31 @@ class AnalysisFragment : Fragment() {
                 color = color,
                 modifier = Modifier.weight(0.6f)
             )
+        }
+    }
+    
+    // Function implementations for button actions
+    private fun analyzeData() {
+        if (::cardProfileManager.isInitialized) {
+            val cardCount = cardProfileManager.getAllCardProfiles().size
+            Timber.d("$TAG Analyzing $cardCount cards in database")
+            // In a real implementation, this would trigger cryptographic analysis
+        } else {
+            Timber.w("$TAG CardProfileManager not initialized")
+        }
+    }
+    
+    private fun exportAnalysis() {
+        if (::cardProfileManager.isInitialized) {
+            try {
+                val exportData = cardProfileManager.exportToJson()
+                Timber.d("$TAG Analysis exported successfully")
+                // In a real implementation, this would save to file or share
+            } catch (e: Exception) {
+                Timber.e(e, "$TAG Error exporting analysis")
+            }
+        } else {
+            Timber.w("$TAG CardProfileManager not initialized for export")
         }
     }
 }

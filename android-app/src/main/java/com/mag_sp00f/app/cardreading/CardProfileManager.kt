@@ -51,10 +51,14 @@ class CardProfileManager private constructor() {
      */
     fun saveCard(cardData: EmvCardData) {
         val profile = CardProfile(
-            emvCardData = cardData
+            emvCardData = cardData,
+            apduLogs = cardData.apduLog.toMutableList(), // Copy APDU logs from card data
+            cardholderName = cardData.cardholderName,
+            expirationDate = cardData.expiryDate,
+            applicationLabel = cardData.applicationLabel
         )
         cardProfiles.add(profile)
-        Timber.d("💾 Card saved: ${cardData.cardholderName ?: "Unknown"} | Total: ${cardProfiles.size}")
+        Timber.d("💾 Card saved: ${cardData.cardholderName ?: "Unknown"} | APDUs: ${cardData.apduLog.size} | Total: ${cardProfiles.size}")
         notifyListeners() // Notify UI updates
     }
     
@@ -88,10 +92,21 @@ class CardProfileManager private constructor() {
     }
     
     /**
-     * Get all card profiles
+     * Get all card profiles with PAN-first, then UID sorting
+     * Per user requirements: "list by PAN first then list by UID after"
      */
     fun getAllCardProfiles(): List<CardProfile> {
-        return cardProfiles.toList()
+        return cardProfiles.sortedWith(compareBy<CardProfile> { profile ->
+            // Primary sort: PAN presence (cards with PAN first)
+            val pan = profile.emvCardData.getUnmaskedPan()
+            if (pan.isBlank()) 1 else 0
+        }.thenBy { profile ->
+            // Secondary sort: PAN value (ascending)
+            profile.emvCardData.getUnmaskedPan()
+        }.thenBy { profile ->
+            // Tertiary sort: UID for cards without PAN
+            profile.emvCardData.cardUid ?: "zzz_unknown"
+        })
     }
     
     /**

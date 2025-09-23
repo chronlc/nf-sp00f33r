@@ -4,18 +4,15 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontWeight
@@ -23,19 +20,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mag_sp00f.app.cardreading.CardProfileManager
 import com.mag_sp00f.app.models.CardProfile
-import com.mag_sp00f.app.data.EmvCardData
 import com.mag_sp00f.app.ui.theme.MagSp00fTheme
-import kotlinx.coroutines.launch
 import timber.log.Timber
 
-/**
- * Card Database Management Fragment
- * Complete EMV card profile management with search, CRUD operations, and modern UI
- * Full production functionality for professional EMV analysis
- */
 class CardDatabaseFragment : Fragment() {
     
     private lateinit var cardManager: CardProfileManager
@@ -66,47 +55,20 @@ class CardDatabaseFragment : Fragment() {
 fun CardDatabaseScreen(cardManager: CardProfileManager) {
     var cardProfiles by remember { mutableStateOf<List<CardProfile>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
-    var selectedSortOption by remember { mutableStateOf("Date Created") }
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var showEditDialog by remember { mutableStateOf<CardProfile?>(null) }
-    var showDeleteConfirm by remember { mutableStateOf<CardProfile?>(null) }
+    var showAddDialog by remember { mutableStateOf(false) }
     var showImportExportDialog by remember { mutableStateOf(false) }
-    var showBulkDeleteConfirm by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(true) }
     
-    val scope = rememberCoroutineScope()
-    
-    // Function to refresh card list
-    val refreshCards = {
-        cardProfiles = cardManager.getAllCardProfiles()
-        Timber.d("🔄 Database refreshed: ${cardProfiles.size} cards")
-    }
-    
-    // Load cards on startup and setup listener for real-time updates
+    // Load cards on startup
     LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                refreshCards()
-                cardManager.addListener(refreshCards)
-                isLoading = false
-                Timber.d("Database: Loaded ${cardProfiles.size} card profiles with real-time updates")
-            } catch (e: Exception) {
-                Timber.e(e, "Database: Failed to load card profiles")
-                isLoading = false
-            }
+        cardProfiles = cardManager.getAllCardProfiles()
+        cardManager.addListener {
+            cardProfiles = cardManager.getAllCardProfiles()
         }
     }
     
-    // Cleanup listener on disposal
-    DisposableEffect(Unit) {
-        onDispose {
-            cardManager.removeListener(refreshCards)
-        }
-    }
-    
-    // Filter and sort cards
-    val filteredAndSortedCards = remember(cardProfiles, searchQuery, selectedSortOption) {
-        val filtered = if (searchQuery.isBlank()) {
+    // Filter cards
+    val filteredCards = remember(cardProfiles, searchQuery) {
+        if (searchQuery.isBlank()) {
             cardProfiles
         } else {
             cardProfiles.filter { profile ->
@@ -119,23 +81,14 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                 applicationLabel.contains(searchQuery, ignoreCase = true)
             }
         }
-        
-        when (selectedSortOption) {
-            "Date Created" -> filtered.sortedByDescending { it.createdAt }
-            "Card Type" -> filtered.sortedBy { it.emvCardData.detectCardType().name }
-            "PAN" -> filtered.sortedBy { it.emvCardData.pan ?: "" }
-            "Cardholder" -> filtered.sortedBy { it.emvCardData.cardholderName ?: "" }
-            else -> filtered
-        }
     }
     
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        // Header Section
+        // Compact Header
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -143,319 +96,130 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
             )
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = "Card Database",
-                    style = MaterialTheme.typography.headlineMedium.copy(
+                    style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp
+                        fontSize = 20.sp
                     ),
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = "EMV Profile Management System",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "EMV Profile Management",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center
                 )
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 
-                // Stats Row
+                // Compact Stats
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatsCard("Total Cards", cardProfiles.size.toString())
-                    StatsCard("Filtered", filteredAndSortedCards.size.toString())
-                    StatsCard("Ready", cardProfiles.count { it.isEmulationReady() }.toString())
+                    CompactStatsCard("Cards", cardProfiles.size.toString())
+                    CompactStatsCard("Filtered", filteredCards.size.toString())
+                    CompactStatsCard("Ready", cardProfiles.count { it.isEmulationReady() }.toString())
                 }
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         
-        // Search and Controls Section
-        Card(
-            modifier = Modifier.fillMaxWidth()
+        // Compact Search
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                // Search Bar
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text("Search cards...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Sort and Action Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Sort Dropdown
-                    var sortExpanded by remember { mutableStateOf(false) }
-                    
-                    ExposedDropdownMenuBox(
-                        expanded = sortExpanded,
-                        onExpandedChange = { sortExpanded = it }
-                    ) {
-                        OutlinedTextField(
-                            value = "Sort: $selectedSortOption",
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sortExpanded) },
-                            modifier = Modifier.menuAnchor()
-                        )
-                        
-                        ExposedDropdownMenu(
-                            expanded = sortExpanded,
-                            onDismissRequest = { sortExpanded = false }
-                        ) {
-                            listOf("Date Created", "Card Type", "PAN", "Cardholder").forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text(option) },
-                                    onClick = {
-                                        selectedSortOption = option
-                                        sortExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    
-                    // Action Buttons Row
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Import/Export Button
-                        OutlinedButton(
-                            onClick = { showImportExportDialog = true }
-                        ) {
-                            Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Backup")
-                        }
-                        
-                        // Bulk Delete Button (only show if cards exist)
-                        if (cardProfiles.isNotEmpty()) {
-                            OutlinedButton(
-                                onClick = { showBulkDeleteConfirm = true },
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = Color.Red
-                                )
-                            ) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Clear All")
-                            }
-                        }
-                        
-                        // Add Card Button
-                        FloatingActionButton(
-                            onClick = { showCreateDialog = true },
-                            containerColor = MaterialTheme.colorScheme.primary
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add Card")
-                        }
-                    }
-                }
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("Search", fontSize = 12.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            
+            IconButton(onClick = { showAddDialog = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Add Card")
+            }
+            IconButton(onClick = { showImportExportDialog = true }) {
+                Icon(Icons.Default.ImportExport, contentDescription = "Import/Export")
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         
         // Cards List
-        if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Loading EMV profiles...")
-                }
-            }
-        } else if (filteredAndSortedCards.isEmpty()) {
+        if (filteredCards.isEmpty()) {
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
+                    modifier = Modifier.padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = if (cardProfiles.isEmpty()) "No Cards in Database" else "No Matching Cards",
-                        style = MaterialTheme.typography.headlineSmall,
-                        textAlign = TextAlign.Center
+                    Icon(
+                        Icons.Default.CreditCard,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = if (cardProfiles.isEmpty()) 
-                            "Start by reading your first EMV card!" 
-                        else 
-                            "Try adjusting your search query",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        text = if (searchQuery.isBlank()) "No cards in database" else "No cards match search",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         } else {
             LazyColumn {
-                items(filteredAndSortedCards) { profile ->
-                    CardProfileItem(
-                        profile = profile,
-                        onEdit = { showEditDialog = it },
-                        onDelete = { showDeleteConfirm = it }
-                    )
+                items(filteredCards) { profile ->
+                    EnhancedCardProfileItem(profile = profile)
                 }
             }
         }
     }
     
-    // Dialogs
-    if (showCreateDialog) {
+    // Dialog for adding new cards
+    if (showAddDialog) {
         CardCreatorDialog(
-            onDismiss = { showCreateDialog = false },
+            onDismiss = { showAddDialog = false },
             onCardCreated = { cardProfile ->
-                scope.launch {
-                    try {
-                        cardManager.saveCardProfile(cardProfile)
-                        cardProfiles = cardManager.getAllCardProfiles()
-                        showCreateDialog = false
-                        Timber.d("Database: Created new card profile: ${cardProfile.emvCardData.pan}")
-                    } catch (e: Exception) {
-                        Timber.e(e, "Database: Failed to create card profile")
-                    }
-                }
+                cardManager.saveCardProfile(cardProfile)
+                cardProfiles = cardManager.getAllCardProfiles()
+                showAddDialog = false
             }
         )
     }
     
-    // Import/Export Dialog
+    // Dialog for import/export functionality
     if (showImportExportDialog) {
-        CardImportExportDialog(
+        ImportExportDialog(
             cardManager = cardManager,
             onDismiss = { showImportExportDialog = false },
-            onComplete = { message ->
-                scope.launch {
-                    cardProfiles = cardManager.getAllCardProfiles()
-                    showImportExportDialog = false
-                    Timber.d("Database: Import/Export completed - $message")
-                }
-            }
-        )
-    }
-    
-    // Bulk Delete Confirmation
-    if (showBulkDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showBulkDeleteConfirm = false },
-            title = { Text("⚠️ Clear All Card Profiles") },
-            text = { 
-                Text("This will permanently delete ALL ${cardProfiles.size} card profiles from your database.\n\nThis action cannot be undone. Consider exporting a backup first.")
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            try {
-                                cardManager.clearAllProfiles()
-                                cardProfiles = cardManager.getAllCardProfiles()
-                                showBulkDeleteConfirm = false
-                                Timber.d("Database: Bulk delete completed")
-                            } catch (e: Exception) {
-                                Timber.e(e, "Database: Failed to bulk delete profiles")
-                            }
-                        }
-                    }
-                ) {
-                    Text("DELETE ALL", color = Color.Red, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showBulkDeleteConfirm = false }) {
-                    Text("CANCEL")
-                }
-            }
-        )
-    }
-    
-    showEditDialog?.let { profile ->
-        CardEditorDialog(
-            card = profile.emvCardData,
-            onDismiss = { showEditDialog = null },
-            onSave = { updatedCard ->
-                scope.launch {
-                    try {
-                        val updatedProfile = profile.copy(emvCardData = updatedCard)
-                        cardManager.updateCardProfile(updatedProfile)
-                        cardProfiles = cardManager.getAllCardProfiles()
-                        showEditDialog = null
-                        Timber.d("Database: Updated card profile: ${updatedProfile.id}")
-                    } catch (e: Exception) {
-                        Timber.e(e, "Database: Failed to update card profile")
-                    }
-                }
-            }
-        )
-    }
-    
-    showDeleteConfirm?.let { profile ->
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("Delete Card Profile") },
-            text = { 
-                Text("Are you sure you want to delete this EMV card profile?\n\n${profile.emvCardData.getUnmaskedPan()}\n${profile.emvCardData.cardholderName ?: "Unknown Cardholder"}")
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            try {
-                                cardManager.deleteCardProfile(profile.id)
-                                cardProfiles = cardManager.getAllCardProfiles()
-                                showDeleteConfirm = null
-                                Timber.d("Database: Deleted card profile: ${profile.id}")
-                            } catch (e: Exception) {
-                                Timber.e(e, "Database: Failed to delete card profile")
-                            }
-                        }
-                    }
-                ) {
-                    Text("DELETE", color = Color.Red)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) {
-                    Text("CANCEL")
-                }
+            onDataChanged = {
+                cardProfiles = cardManager.getAllCardProfiles()
             }
         )
     }
 }
 
 @Composable
-fun StatsCard(label: String, value: String) {
+fun CompactStatsCard(label: String, value: String) {
     Card(
         modifier = Modifier
-            .width(100.dp)
-            .height(60.dp),
+            .width(80.dp)
+            .height(45.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -467,7 +231,7 @@ fun StatsCard(label: String, value: String) {
         ) {
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineSmall.copy(
+                style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold
                 ),
                 color = MaterialTheme.colorScheme.primary
@@ -475,19 +239,17 @@ fun StatsCard(label: String, value: String) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                fontSize = 10.sp
             )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CardProfileItem(
-    profile: CardProfile,
-    onEdit: (CardProfile) -> Unit,
-    onDelete: (CardProfile) -> Unit
-) {
+fun EnhancedCardProfileItem(profile: CardProfile) {
+    var expandedApduLog by remember { mutableStateOf(false) }
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -521,18 +283,19 @@ fun CardProfileItem(
                 }
                 
                 Row {
-                    IconButton(onClick = { onEdit(profile) }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
-                    }
-                    IconButton(onClick = { onDelete(profile) }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                    IconButton(onClick = { expandedApduLog = !expandedApduLog }) {
+                        Icon(
+                            if (expandedApduLog) Icons.Default.ExpandLess else Icons.Default.ExpandMore, 
+                            contentDescription = "Toggle APDU Log",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
             
             Spacer(modifier = Modifier.height(8.dp))
             
-            // Details Row
+            // Enhanced Details
             Column {
                 val cardholderName = profile.emvCardData.cardholderName
                 if (cardholderName != null && cardholderName.isNotEmpty()) {
@@ -551,10 +314,39 @@ fun CardProfileItem(
                     )
                 }
                 
+                // EMV Technical Details
+                profile.emvCardData.applicationLabel.let { label ->
+                    if (label.isNotEmpty()) {
+                        Text(
+                            text = "App: $label",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                
+                profile.emvCardData.applicationInterchangeProfile?.let { aip ->
+                    Text(
+                        text = "AIP: $aip",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+                
+                profile.emvCardData.track2Data?.let { track2 ->
+                    Text(
+                        text = "Track2: ${track2.take(20)}${if (track2.length > 20) "..." else ""}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+                
                 Text(
-                    text = "${profile.apduLogs.size} APDU Commands | ${profile.getAttackCompatibility().size} Test Vectors",
+                    text = "${profile.apduLogs.size} APDU Commands | ${profile.getAttackCompatibility().size} Attack Vectors",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.primary
                 )
                 
                 Text(
@@ -564,44 +356,128 @@ fun CardProfileItem(
                 )
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Status Badge
-            val statusColor = if (profile.isEmulationReady()) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.outline
-            }
-            
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            statusColor.copy(alpha = 0.2f),
-                            RoundedCornerShape(12.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+            // Expandable APDU Log Section
+            if (expandedApduLog && profile.apduLogs.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
                 ) {
-                    Text(
-                        text = if (profile.isEmulationReady()) "READY FOR TESTING" else "NEEDS MORE DATA",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = statusColor
-                    )
+                    Column(
+                        modifier = Modifier.padding(8.dp)
+                    ) {
+                        Text(
+                            text = "APDU Transaction Log (${profile.apduLogs.size} commands)",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        // Show recent APDU commands (limit to 10 for UI performance)
+                        profile.apduLogs.take(10).forEach { apdu ->
+                            Text(
+                                text = "→ ${apdu.command.take(40)}${if (apdu.command.length > 40) "..." else ""}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = Color(0xFF4CAF50)
+                            )
+                            Text(
+                                text = "← ${apdu.response.take(40)}${if (apdu.response.length > 40) "..." else ""} (${apdu.statusWord})",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = Color(0xFF2196F3)
+                            )
+                            if (apdu.description.isNotEmpty()) {
+                                Text(
+                                    text = "  ${apdu.description}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                        }
+                        
+                        if (profile.apduLogs.size > 10) {
+                            Text(
+                                text = "... and ${profile.apduLogs.size - 10} more commands",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
+                        }
+                    }
                 }
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                Text(
-                    text = profile.getAttackRiskLevel(),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontWeight = FontWeight.Bold
-                    )
-                )
             }
         }
     }
+}
+
+@Composable
+fun ImportExportDialog(
+    cardManager: CardProfileManager,
+    onDismiss: () -> Unit,
+    onDataChanged: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Import/Export Cards",
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    "Card Database Management",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Total Cards: ${cardManager.getAllCardProfiles().size}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        },
+        confirmButton = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TextButton(
+                    onClick = {
+                        // Export functionality
+                        val exportData = cardManager.exportToJson()
+                        Timber.d("Exported ${cardManager.getAllCardProfiles().size} cards")
+                        onDismiss()
+                    }
+                ) {
+                    Text("EXPORT")
+                }
+                TextButton(
+                    onClick = {
+                        // Clear all cards functionality
+                        cardManager.clearAllProfiles()
+                        onDataChanged()
+                        onDismiss()
+                    }
+                ) {
+                    Text("CLEAR ALL")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CANCEL")
+            }
+        }
+    )
 }

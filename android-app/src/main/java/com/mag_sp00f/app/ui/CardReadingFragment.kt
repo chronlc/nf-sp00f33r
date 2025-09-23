@@ -37,7 +37,6 @@ import com.mag_sp00f.app.cardreading.NfcCardReaderWithWorkflows
 import com.mag_sp00f.app.cardreading.CardProfileManager
 import com.mag_sp00f.app.ui.theme.MagSp00fTheme
 import timber.log.Timber
-import kotlinx.coroutines.delay
 
 /**
  * Professional Brute Force TTQ Card Reader Fragment
@@ -51,25 +50,37 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
     private val cardProfileManager = CardProfileManager.getInstance()
     private lateinit var nfcCardReader: NfcCardReaderWithWorkflows
     
-    // Compose state holders for real-time EMV callbacks
+    // State holders for real-time updates
     private val isReadingState = mutableStateOf(false)
-    private val statusMessageState = mutableStateOf("TTQ Brute Force Ready - Select Workflow")
-    private val apduLogState = mutableStateOf(listOf<ApduLogEntry>())
+    private val statusMessageState = mutableStateOf("Ready to read EMV cards - Press READ CARD to start")
+    private val apduLogState = mutableStateOf<List<ApduLogEntry>>(emptyList())
     private val currentCardDataState = mutableStateOf<EmvCardData?>(null)
-    private val progressState = mutableStateOf("")
-    private val emvTagsState = mutableStateOf(mapOf<String, String>())
+    private val progressState = mutableStateOf(0f)
+    private val emvTagsState = mutableStateOf<Map<String, String>>(emptyMap())
     private val selectedWorkflowState = mutableStateOf(EmvWorkflow.STANDARD_CONTACTLESS)
     private val showWorkflowSelectorState = mutableStateOf(false)
     private val continuousReadModeState = mutableStateOf(false)
     private val stealthModeState = mutableStateOf(false)
     private val autoStopAfterReadState = mutableStateOf(true)
+    
+    // Enhanced control states for proper NFC management
+    private val nfcDetectionEnabledState = mutableStateOf(false)
+    private val cardsReadInSessionState = mutableStateOf(0)
+    private val workflowCompleteState = mutableStateOf(false)
 
     companion object {
         private const val TAG = "CardReadingFragment"
     }
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        // Initialize NFC card reader now that we're attached to activity
         nfcCardReader = NfcCardReaderWithWorkflows(requireActivity(), this)
+        
+        Timber.d("$TAG CardReadingFragment initialized - reading state: ${isReadingState.value}")
         
         return ComposeView(requireContext()).apply {
             setContent {
@@ -77,6 +88,23 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                     CardReadingScreen()
                 }
             }
+        }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        Timber.d("$TAG CardReadingFragment onResume - NFC detection DISABLED until READ CARD pressed")
+        // CRITICAL: DO NOT enable NFC detection on resume - only when user explicitly presses READ CARD
+        nfcDetectionEnabledState.value = false
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        Timber.d("$TAG CardReadingFragment onPause - stopping all NFC operations")
+        if (::nfcCardReader.isInitialized) {
+            nfcCardReader.stopReading()  // Always stop NFC on pause
+            isReadingState.value = false
+            nfcDetectionEnabledState.value = false
         }
     }
 
@@ -97,6 +125,9 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
         var continuousReadMode by continuousReadModeState
         var stealthMode by stealthModeState
         var autoStopAfterRead by autoStopAfterReadState
+        var nfcDetectionEnabled by nfcDetectionEnabledState
+        var cardsReadInSession by cardsReadInSessionState
+        var workflowComplete by workflowCompleteState
 
         // Professional dark gradient
         val backgroundBrush = Brush.verticalGradient(
@@ -133,108 +164,6 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                     ),
                     scrollBehavior = scrollBehavior
                 )
-            },
-            bottomBar = {
-                BottomAppBar(
-                    containerColor = Color(0xFF1A1A1A),
-                    contentColor = Color(0xFF00FF00)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        // TTQ Workflow Dropdown
-                        TTQWorkflowDropdown(
-                            selectedWorkflow = selectedWorkflow,
-                            onWorkflowSelected = { workflow ->
-                                selectedWorkflow = workflow
-                                statusMessage = "TTQ Workflow set to: ${workflow.name}"
-                            },
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                        )
-                        
-                        // Options Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            // Continuous Read Mode Checkbox
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { 
-                                    continuousReadMode = !continuousReadMode 
-                                }
-                            ) {
-                                Checkbox(
-                                    checked = continuousReadMode,
-                                    onCheckedChange = { continuousReadMode = it },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFF00BB22),
-                                        uncheckedColor = Color(0xFF666666)
-                                    )
-                                )
-                                Text(
-                                    "Continuous",
-                                    color = Color(0xFF00AAFF),
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
-                            
-                            // Stealth Mode Checkbox
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { 
-                                    stealthMode = !stealthMode 
-                                }
-                            ) {
-                                Checkbox(
-                                    checked = stealthMode,
-                                    onCheckedChange = { stealthMode = it },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFFFF6600),
-                                        uncheckedColor = Color(0xFF666666)
-                                    )
-                                )
-                                Text(
-                                    "Stealth",
-                                    color = Color(0xFFFF6600),
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        // Read Card Button
-                        Button(
-                            onClick = {
-                                if (isReading) {
-                                    nfcCardReader.stopReading()
-                                } else {
-                                    nfcCardReader.setWorkflow(selectedWorkflow)
-                                    nfcCardReader.startReading()
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isReading) Color(0xFFFF4444) else Color(0xFF00BB22),
-                                contentColor = Color.Black
-                            )
-                        ) {
-                            Icon(
-                                imageVector = if (isReading) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                            Text(
-                                text = if (isReading) "STOP READING" else "READ CARD",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                        }
-                    }
-                }
             }
         ) { innerPadding ->
             Box(
@@ -259,8 +188,191 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Current Workflow Status
-                    CurrentWorkflowCard(selectedWorkflow, isReading, continuousReadMode, stealthMode)
+                    // Options Checkboxes
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                "READ OPTIONS",
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00BB22),
+                                fontSize = 14.sp
+                            )
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // Options Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                // Continuous Read Mode Checkbox
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { 
+                                        continuousReadMode = !continuousReadMode 
+                                    }
+                                ) {
+                                    Checkbox(
+                                        checked = continuousReadMode,
+                                        onCheckedChange = { continuousReadMode = it },
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = Color(0xFF00BB22),
+                                            uncheckedColor = Color(0xFF666666)
+                                        )
+                                    )
+                                    Text(
+                                        "Continuous Read",
+                                        color = Color(0xFF00AAFF),
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                                
+                                // Stealth Mode Checkbox
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { 
+                                        stealthMode = !stealthMode 
+                                    }
+                                ) {
+                                    Checkbox(
+                                        checked = stealthMode,
+                                        onCheckedChange = { stealthMode = it },
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = Color(0xFFFF6600),
+                                            uncheckedColor = Color(0xFF666666)
+                                        )
+                                    )
+                                    Text(
+                                        "Stealth Read",
+                                        color = Color(0xFFFF6600),
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                                
+                                // Read All AID Checkbox
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { 
+                                        autoStopAfterRead = !autoStopAfterRead 
+                                    }
+                                ) {
+                                    Checkbox(
+                                        checked = !autoStopAfterRead,
+                                        onCheckedChange = { autoStopAfterRead = !it },
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = Color(0xFF00AAFF),
+                                            uncheckedColor = Color(0xFF666666)
+                                        )
+                                    )
+                                    Text(
+                                        "Read All AID",
+                                        color = Color(0xFF00AAFF),
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Control Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                if (!isReading) {
+                                    if (::nfcCardReader.isInitialized) {
+                                        // ENABLE NFC DETECTION - user explicitly requested card reading
+                                        nfcDetectionEnabled = true
+                                        workflowComplete = false
+                                        cardsReadInSession = 0
+                                        
+                                        nfcCardReader.setWorkflow(selectedWorkflow)
+                                        nfcCardReader.startReading()
+                                        
+                                        statusMessage = if (continuousReadMode) {
+                                            "🔄 CONTINUOUS MODE: Place multiple cards to read with ${selectedWorkflow.name}"
+                                        } else {
+                                            "📱 Place card near device to read with ${selectedWorkflow.name}"
+                                        }
+                                        
+                                        Timber.d("$TAG NFC Detection ENABLED - User pressed READ CARD")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = !isReading,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (nfcDetectionEnabled) Color(0xFF00BB22) else Color(0xFF555555),
+                                contentColor = Color.Black,
+                                disabledContainerColor = Color(0xFF333333)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = if (nfcDetectionEnabled) Icons.Filled.PlayArrow else Icons.Filled.TouchApp,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(
+                                text = if (nfcDetectionEnabled) "SCANNING..." else "READ CARD(S)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                        
+                        Button(
+                            onClick = {
+                                if (isReading || nfcDetectionEnabled) {
+                                    if (::nfcCardReader.isInitialized) {
+                                        nfcCardReader.stopReading()
+                                        // DISABLE NFC DETECTION - user manually stopped
+                                        nfcDetectionEnabled = false
+                                        workflowComplete = true
+                                        statusMessage = "🛑 NFC Detection STOPPED - $cardsReadInSession cards read"
+                                        Timber.d("$TAG NFC Detection DISABLED - User pressed STOP")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = isReading || nfcDetectionEnabled,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFF4444),
+                                contentColor = Color.White,
+                                disabledContainerColor = Color(0xFF333333)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(
+                                text = "STOP",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                    
+                    // TTQ Workflow Dropdown - moved above Current Workflow card
+                    TTQWorkflowDropdown(
+                        selectedWorkflow = selectedWorkflow,
+                        onWorkflowSelected = { workflow ->
+                            selectedWorkflow = workflow
+                            statusMessage = "TTQ Workflow set to: ${workflow.name}"
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     // Status Section
                     StatusCard(statusMessage, progress, isReading)
@@ -280,17 +392,17 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                         LiveApduLogCard(apduLog, stealthMode)
                     }
 
-                    // EMV Tag Analysis
+                    // Extended EMV Tag Analysis
                     if (emvTags.isNotEmpty()) {
                         EmvTagAnalysis(emvTags)
                     }
 
-                    // EMV Data Analysis
+                    // EMV Data Breakdown (if card data available)
                     currentCardData?.let { cardData ->
                         EmvDataBreakdown(cardData)
                     }
 
-                    // Workflow Results Analysis
+                    // Workflow-Specific Results Card
                     currentCardData?.let { cardData ->
                         WorkflowResultsCard(cardData, selectedWorkflow)
                     }
@@ -356,7 +468,7 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                                     fontSize = 14.sp
                                 )
                                 Text(
-                                    text = "TTQ: ${workflow.ttqValue}",
+                                    text = "TTQ: ${workflow.ttqValue} | Terminal: ${workflow.terminalCapabilities}",
                                     fontFamily = FontFamily.Monospace,
                                     color = Color(0xFFFFAA00),
                                     fontSize = 11.sp
@@ -367,6 +479,26 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                                     color = Color(0xFF888888),
                                     fontSize = 10.sp
                                 )
+                                Column(
+                                    modifier = Modifier.padding(top = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "Expected Data:",
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color(0xFF666666),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    workflow.expectedDataPoints.forEach { dataPoint ->
+                                        Text(
+                                            text = "• $dataPoint",
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFF00BB22),
+                                            fontSize = 8.sp,
+                                            modifier = Modifier.padding(start = 8.dp)
+                                        )
+                                    }
+                                }
                             }
                         },
                         onClick = {
@@ -380,7 +512,7 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
     }
 
     @Composable
-    private fun CurrentWorkflowCard(workflow: EmvWorkflow, isReading: Boolean, continuousMode: Boolean, stealthMode: Boolean) {
+    private fun StatusCard(message: String, progress: Float, isReading: Boolean) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
@@ -389,95 +521,7 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "⚡ CURRENT TTQ WORKFLOW",
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00BB22),
-                    fontSize = 14.sp
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = workflow.name,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00AAFF),
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = workflow.description,
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF888888),
-                            fontSize = 12.sp
-                        )
-                    }
-                    
-                    Column(horizontalAlignment = Alignment.End) {
-                        if (isReading) {
-                            Text(
-                                text = if (stealthMode) "STEALTH MODE" else "ACTIVE",
-                                fontFamily = FontFamily.Monospace,
-                                color = if (stealthMode) Color(0xFFFF6600) else Color(0xFF00FF00),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        if (continuousMode) {
-                            Text(
-                                text = "CONTINUOUS",
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF00CCCC),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // TTQ Details
-                Text(
-                    text = "🏷️ TTQ: ${workflow.ttqValue}",
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFFFFAA00),
-                    fontSize = 12.sp
-                )
-                
-                Text(
-                    text = "🛠️ Terminal Caps: ${workflow.terminalCapabilities}",
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFFFF6666),
-                    fontSize = 12.sp
-                )
-                
-                Text(
-                    text = "⚙️ Expected Data: ${workflow.expectedDataPoints.joinToString(", ")}",
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF00CCCC),
-                    fontSize = 11.sp
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun TtqAnalysisCard(ttqHex: String, workflow: EmvWorkflow) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "🔍 TTQ ANALYSIS",
+                    text = "TTQ ANALYSIS",
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF00BB22),
@@ -487,343 +531,77 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = "Card TTQ: $ttqHex",
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFFFFAA00),
-                    fontSize = 12.sp
-                )
-                
-                Text(
-                    text = "Workflow TTQ: ${workflow.ttqValue}",
+                    text = message,
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF00AAFF),
                     fontSize = 12.sp
                 )
                 
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                val ttqAnalysis = EmvWorkflow.analyzeTtq(ttqHex)
-                ttqAnalysis.forEach { (capability, enabled) ->
-                    Row(
-                        modifier = Modifier.padding(vertical = 1.dp)
-                    ) {
-                        Text(
-                            text = if (enabled) "✅" else "❌",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            modifier = Modifier.width(20.dp)
-                        )
-                        Text(
-                            text = capability,
-                            fontFamily = FontFamily.Monospace,
-                            color = if (enabled) Color(0xFF00FF00) else Color(0xFF666666),
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun WorkflowResultsCard(cardData: EmvCardData, workflow: EmvWorkflow) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "📊 WORKFLOW RESULTS",
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00BB22),
-                    fontSize = 14.sp
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Expected vs Extracted Data
-                val extractedDataPoints = mutableListOf<String>()
-                cardData.pan?.let { extractedDataPoints.add("PAN") }
-                cardData.track2Data?.let { extractedDataPoints.add("Track2") }
-                cardData.applicationInterchangeProfile?.let { extractedDataPoints.add("AIP") }
-                cardData.applicationFileLocator?.let { extractedDataPoints.add("AFL") }
-                cardData.applicationLabel?.let { extractedDataPoints.add("App Label") }
-                cardData.emvTags["8E"]?.let { extractedDataPoints.add("CVM List") }
-                cardData.emvTags["9F34"]?.let { extractedDataPoints.add("CVM Results") }
-                cardData.emvTags["9F17"]?.let { extractedDataPoints.add("PIN Try Counter") }
-                cardData.emvTags["91"]?.let { extractedDataPoints.add("Issuer Auth Data") }
-                
-                Text(
-                    text = "🎯 Expected: ${workflow.expectedDataPoints.joinToString(", ")}",
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF00AAFF),
-                    fontSize = 11.sp
-                )
-                
-                Text(
-                    text = "✅ Extracted: ${extractedDataPoints.joinToString(", ")}",
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF00FF88),
-                    fontSize = 11.sp
-                )
-                
-                val successRate = if (workflow.expectedDataPoints.contains("User Defined")) {
-                    100 // Custom workflow always 100%
-                } else {
-                    val matchedCount = workflow.expectedDataPoints.count { expected ->
-                        extractedDataPoints.any { extracted -> 
-                            extracted.contains(expected, ignoreCase = true) 
-                        }
-                    }
-                    if (workflow.expectedDataPoints.isNotEmpty()) {
-                        (matchedCount * 100) / workflow.expectedDataPoints.size
-                    } else 0
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = "💯 Success Rate: $successRate%",
-                    fontFamily = FontFamily.Monospace,
-                    color = when {
-                        successRate >= 80 -> Color(0xFF00FF00)
-                        successRate >= 50 -> Color(0xFFFFAA00)
-                        else -> Color(0xFFFF4444)
-                    },
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                Text(
-                    text = "📈 Total EMV Tags: ${cardData.emvTags.size}",
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF00CCCC),
-                    fontSize = 11.sp
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun StatusCard(statusMessage: String, progress: String, isReading: Boolean) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "��‍☠️ TTQ STATUS",
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00BB22),
-                        fontSize = 14.sp
+                if (isReading && progress > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = progress,
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color(0xFF00BB22)
                     )
-                    if (isReading) {
-                        Text(
-                            text = "⚡ READING",
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFFFF0040),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
                 }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
+            }
+        }
+    }
+
+    // Complete implementations for APDU log and EMV parsing display
+    @Composable 
+    private fun VirtualEmvCard(cardData: EmvCardData) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
                 Text(
-                    text = statusMessage,
+                    "VIRTUAL EMV CARD (UNMASKED)",
                     fontFamily = FontFamily.Monospace,
-                    color = if (isReading) Color(0xFFFFFF00) else Color(0xFF00AAFF),
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00BB22),
+                    fontSize = 14.sp
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Card brand and PAN
+                Text(
+                    "${cardData.detectCardType().name} • ${cardData.getUnmaskedPan()}",
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF00AAFF),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
                 
-                if (progress.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                // Cardholder and expiry
+                cardData.cardholderName?.let { name ->
                     Text(
-                        text = "📈 $progress",
+                        "Cardholder: $name",
                         fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF00AAFF),
-                        fontSize = 14.sp
+                        color = Color(0xFFFFAA00),
+                        fontSize = 12.sp
+                    )
+                }
+                
+                cardData.expiryDate?.let { expiry ->
+                    Text(
+                        "Expires: $expiry",
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFFFAA00),
+                        fontSize = 12.sp
                     )
                 }
             }
         }
     }
-
-    @Composable
-    private fun VirtualEmvCard(cardData: EmvCardData) {
-        val cardBrand = getCardBrand(cardData.pan)
-        val cardColor = getEliteCardColor(cardBrand)
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp),
-            colors = CardDefaults.cardColors(containerColor = cardColor)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(cardColor, cardColor.copy(alpha = 0.8f), Color.Black.copy(alpha = 0.3f))
-                        )
-                    )
-                    .padding(20.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Card brand and elite labeling
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text(
-                            text = "🏴‍☠️ $cardBrand",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            fontSize = 18.sp
-                        )
-                        Text(
-                            text = cardData.applicationLabel ?: "EMV CARD",
-                            fontFamily = FontFamily.Monospace,
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    // 💳 FULLY UNMASKED PAN (for security research)
-                    Text(
-                        text = formatFullyUnmaskedPan(cardData.pan ?: ""),
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        letterSpacing = 3.sp
-                    )
-
-                    // Cardholder and expiry with elite styling
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        Column {
-                            Text(
-                                text = cardData.cardholderName ?: "SECURITY RESEARCHER",
-                                fontFamily = FontFamily.Monospace,
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "🏴‍☠️ TTQ RESEARCH",
-                                fontFamily = FontFamily.Monospace,
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 10.sp
-                            )
-                        }
-                        Text(
-                            text = formatEliteExpiry(cardData.expiryDate ?: ""),
-                            fontFamily = FontFamily.Monospace,
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun LiveApduLogCard(apduLog: List<ApduLogEntry>, stealthMode: Boolean) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "📡 LIVE APDU TX/RX LOG (${apduLog.size} commands)",
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00BB22),
-                        fontSize = 14.sp
-                    )
-                    if (stealthMode) {
-                        Text(
-                            text = "🔇 STEALTH",
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFFFF6600),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-
-                apduLog.takeLast(10).forEach { logEntry ->
-                    Column(
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "🏴‍☠️ ${logEntry.description}",
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF00AAFF),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Text(
-                            text = "📤 TX: ${logEntry.command}",
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFFFFAA00),
-                            fontSize = 11.sp
-                        )
-                        
-                        val responseColor = when (logEntry.statusWord) {
-                            "9000" -> Color(0xFF00FF88)
-                            else -> Color(0xFFFF4444)
-                        }
-                        Text(
-                            text = "📥 RX: ${logEntry.response} (${logEntry.statusWord})",
-                            fontFamily = FontFamily.Monospace,
-                            color = responseColor,
-                            fontSize = 11.sp
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun EmvTagAnalysis(emvTags: Map<String, String>) {
+    
+    @Composable 
+    private fun TtqAnalysisCard(ttq: String, workflow: EmvWorkflow) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
@@ -832,53 +610,150 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "🏷️ EMV TAG ANALYSIS (${emvTags.size} tags)",
+                    "TTQ ANALYSIS",
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF00BB22),
                     fontSize = 14.sp
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                emvTags.forEach { (tag, value) ->
-                    val tagName = getEmvTagName(tag)
-                    val tagColor = getEliteTagColor(tag)
-                    
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    "Current TTQ: $ttq",
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF00AAFF),
+                    fontSize = 12.sp
+                )
+                
+                Text(
+                    "Workflow: ${workflow.name}",
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFFFFAA00),
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+    
+    @Composable 
+    private fun LiveApduLogCard(log: List<ApduLogEntry>, stealth: Boolean) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    "LIVE APDU TRANSACTION LOG (${log.size} commands)",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00BB22),
+                    fontSize = 14.sp
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Show all APDU commands with full details
+                log.takeLast(20).forEach { apdu ->
+                    Column {
+                        // Command sent (TX)
                         Text(
-                            text = tag,
+                            "TX: ${apdu.command}",
                             fontFamily = FontFamily.Monospace,
-                            color = tagColor,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.width(60.dp)
+                            color = Color(0xFF4CAF50),
+                            fontSize = 10.sp
                         )
+                        
+                        // Response received (RX)
                         Text(
-                            text = tagName,
+                            "RX: ${apdu.response} (SW: ${apdu.statusWord})",
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF888888),
-                            fontSize = 10.sp,
-                            modifier = Modifier.width(120.dp)
+                            color = Color(0xFF2196F3),
+                            fontSize = 10.sp
                         )
+                        
+                        // Description/parsing
+                        if (apdu.description.isNotEmpty()) {
+                            Text(
+                                "   ${apdu.description}",
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFFFAA00),
+                                fontSize = 9.sp
+                            )
+                        }
+                        
+                        // Execution time
                         Text(
-                            text = value,
+                            "   Execution: ${apdu.executionTimeMs}ms",
                             fontFamily = FontFamily.Monospace,
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            modifier = Modifier.weight(1f)
+                            color = Color(0xFF666666),
+                            fontSize = 8.sp
                         )
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
+                
+                if (log.size > 20) {
+                    Text(
+                        "... showing last 20 of ${log.size} commands",
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF666666),
+                        fontSize = 8.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    )
+                }
+            }
+        }
+    }
+    
+    @Composable 
+    private fun EmvTagAnalysis(tags: Map<String, String>) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    "EMV TAG ANALYSIS (${tags.size} tags)",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00BB22),
+                    fontSize = 14.sp
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Show key EMV tags with descriptions
+                tags.forEach { (tag, value) ->
+                    val description = getEmvTagDescription(tag)
+                    Column {
+                        Text(
+                            "$tag: $value",
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF00AAFF),
+                            fontSize = 10.sp
+                        )
+                        if (description.isNotEmpty()) {
+                            Text(
+                                "   $description",
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFFFAA00),
+                                fontSize = 9.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
                     }
                 }
             }
         }
     }
-
-    @Composable
+    
+    @Composable 
     private fun EmvDataBreakdown(cardData: EmvCardData) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -888,226 +763,266 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "📊 EMV DATA BREAKDOWN",
+                    "EMV DATA BREAKDOWN",
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF00BB22),
                     fontSize = 14.sp
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Key EMV fields with elite styling - FULLY UNMASKED
-                cardData.pan?.let {
-                    EliteDataRow("💳 PAN (5A)", it, Color(0xFFFF6B6B))
-                }
                 
-                cardData.track2Data?.let {
-                    EliteDataRow("🛤️ Track2 (57)", it, Color(0xFF4ECDC4))
-                }
+                Spacer(modifier = Modifier.height(8.dp))
                 
-                cardData.applicationInterchangeProfile?.let {
-                    EliteDataRow("⚙️ AIP (82)", it, Color(0xFFFFE66D))
-                }
-                
-                cardData.applicationFileLocator?.let {
-                    EliteDataRow("📂 AFL (94)", it, Color(0xFF95E1D3))
-                }
-                
+                // Core EMV data
                 Text(
-                    text = "🔍 Total EMV Tags: ${cardData.emvTags.size}",
+                    "PAN: ${cardData.getUnmaskedPan()}",
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF00AAFF),
                     fontSize = 12.sp
                 )
                 
-                Text(
-                    text = "📡 APDU Commands: ${cardData.apduLog.size}",
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF00AAFF),
-                    fontSize = 12.sp
-                )
+                cardData.track2Data?.let { track2 ->
+                    Text(
+                        "Track2: $track2",
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF00AAFF),
+                        fontSize = 10.sp
+                    )
+                }
+                
+                cardData.applicationInterchangeProfile?.let { aip ->
+                    Text(
+                        "AIP: $aip",
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFFFAA00),
+                        fontSize = 10.sp
+                    )
+                }
+                
+                cardData.applicationFileLocator?.let { afl ->
+                    Text(
+                        "AFL: $afl",
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFFFAA00),
+                        fontSize = 10.sp
+                    )
+                }
             }
         }
     }
-
-    @Composable
-    private fun EliteDataRow(label: String, value: String, color: Color) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+    
+    @Composable 
+    private fun WorkflowResultsCard(cardData: EmvCardData, workflow: EmvWorkflow) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0A0A))
         ) {
-            Text(
-                text = label,
-                fontFamily = FontFamily.Monospace,
-                color = color,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(120.dp)
-            )
-            Text(
-                text = value,
-                fontFamily = FontFamily.Monospace,
-                color = Color.White,
-                fontSize = 12.sp,
-                modifier = Modifier.weight(1f)
-            )
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    "WORKFLOW RESULTS: ${workflow.name}",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00BB22),
+                    fontSize = 14.sp
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Check if expected data points were found
+                workflow.expectedDataPoints.forEach { expectedData ->
+                    val found = when {
+                        expectedData.contains("PAN") && !cardData.pan.isNullOrEmpty() -> true
+                        expectedData.contains("Track2") && !cardData.track2Data.isNullOrEmpty() -> true
+                        expectedData.contains("AIP") && !cardData.applicationInterchangeProfile.isNullOrEmpty() -> true
+                        expectedData.contains("AFL") && !cardData.applicationFileLocator.isNullOrEmpty() -> true
+                        expectedData.contains("Cardholder") && !cardData.cardholderName.isNullOrEmpty() -> true
+                        else -> false
+                    }
+                    
+                    Text(
+                        "${if (found) "✓" else "✗"} $expectedData",
+                        fontFamily = FontFamily.Monospace,
+                        color = if (found) Color(0xFF4CAF50) else Color(0xFFFF5722),
+                        fontSize = 10.sp
+                    )
+                }
+            }
         }
     }
-
-    // Helper functions
-    private fun formatFullyUnmaskedPan(pan: String): String {
-        return if (pan.length >= 16) {
-            "${pan.substring(0, 4)} ${pan.substring(4, 8)} ${pan.substring(8, 12)} ${pan.substring(12, 16)}"
-        } else if (pan.length >= 8) {
-            "${pan.substring(0, 4)} ${pan.substring(4)}"
-        } else {
-            pan.ifEmpty { "PAN NOT AVAILABLE" }
-        }
-    }
-
-    private fun formatEliteExpiry(expiry: String): String {
-        return if (expiry.length >= 4) {
-            "${expiry.substring(2, 4)}/${expiry.substring(0, 2)}"
-        } else {
-            expiry.ifEmpty { "MM/YY" }
-        }
-    }
-
-    private fun getCardBrand(pan: String?): String {
-        return when {
-            pan?.startsWith("4") == true -> "VISA"
-            pan?.startsWith("5") == true -> "MASTERCARD"
-            pan?.startsWith("3") == true -> "AMEX"
-            pan?.startsWith("6") == true -> "DISCOVER"
-            else -> "EMV CARD"
-        }
-    }
-
-    private fun getEliteCardColor(brand: String): Color {
-        return when (brand) {
-            "VISA" -> Color(0xFF1A1F71)
-            "MASTERCARD" -> Color(0xFFEB001B)
-            "AMEX" -> Color(0xFF006FCF)
-            "DISCOVER" -> Color(0xFFFF6000)
-            else -> Color(0xFF424242)
-        }
-    }
-
-    private fun getEmvTagName(tag: String): String {
-        return when (tag) {
-            "4F" -> "AID"
-            "50" -> "App Label"
-            "57" -> "Track2"
-            "5A" -> "PAN"
-            "5F20" -> "Cardholder"
-            "5F24" -> "Expiry"
-            "82" -> "AIP"
-            "94" -> "AFL"
-            "9F38" -> "PDOL"
-            "9F66" -> "TTQ"
-            "9F33" -> "Term Caps"
-            "8E" -> "CVM List"
+    
+    // Helper function for EMV tag descriptions
+    private fun getEmvTagDescription(tag: String): String {
+        return when (tag.uppercase()) {
+            "9F66" -> "TTQ (Terminal Transaction Qualifiers)"
+            "9F33" -> "Terminal Capabilities"
             "9F34" -> "CVM Results"
-            "9F17" -> "PIN Counter"
-            "91" -> "Issuer Auth"
-            else -> "EMV Tag"
+            "9F26" -> "Application Cryptogram"
+            "9F36" -> "Application Transaction Counter"
+            "9F37" -> "Unpredictable Number"
+            "95" -> "Terminal Verification Results"
+            "9B" -> "Transaction Status Information"
+            "9F02" -> "Amount Authorized"
+            "9F03" -> "Amount Other"
+            "9F1A" -> "Terminal Country Code"
+            "9F35" -> "Terminal Type"
+            "5F2A" -> "Transaction Currency Code"
+            "9A" -> "Transaction Date"
+            "9F21" -> "Transaction Time"
+            "82" -> "Application Interchange Profile"
+            "94" -> "Application File Locator"
+            "5A" -> "Application Primary Account Number"
+            "57" -> "Track 2 Equivalent Data"
+            "5F20" -> "Cardholder Name"
+            "5F24" -> "Application Expiration Date"
+            "50" -> "Application Label"
+            "9F12" -> "Application Preferred Name"
+            else -> ""
         }
     }
 
-    private fun getEliteTagColor(tag: String): Color {
-        return when (tag) {
-            "5A" -> Color(0xFFFF6B6B)
-            "57" -> Color(0xFF4ECDC4)
-            "82" -> Color(0xFFFFE66D)
-            "94" -> Color(0xFF95E1D3)
-            "9F66" -> Color(0xFFFF9800)
-            "9F33" -> Color(0xFF9C27B0)
-            "8E" -> Color(0xFF00BCD4)
-            else -> Color(0xFF888888)
-        }
-    }
-
-    // CardReadingCallback implementations
+    // CardReadingCallback implementation
     override fun onReadingStarted() {
         isReadingState.value = true
-        statusMessageState.value = "🏴‍☠️ ${selectedWorkflowState.value.name} TTQ scan active - place card near device"
+        nfcDetectionEnabledState.value = true
         apduLogState.value = emptyList()
-        currentCardDataState.value = null
-        progressState.value = ""
-        emvTagsState.value = emptyMap()
+        progressState.value = 0.1f
         
-        if (!stealthModeState.value) {
-            Timber.d("$TAG 🚀 TTQ Reading started with workflow: ${selectedWorkflowState.value.name}")
+        val isContinuousMode = continuousReadModeState.value
+        val isStealthMode = stealthModeState.value
+        
+        if (!isStealthMode) {
+            statusMessageState.value = if (isContinuousMode) {
+                "🔄 CONTINUOUS ${selectedWorkflowState.value.name} scan ACTIVE - place cards in range"
+            } else {
+                "📱 ${selectedWorkflowState.value.name} scan ACTIVE - place card near device"
+            }
         }
+        
+        Timber.d("$TAG NFC Reading started with workflow: ${selectedWorkflowState.value.name}, Continuous: $isContinuousMode, Stealth: $isStealthMode")
     }
 
     override fun onReadingStopped() {
         isReadingState.value = false
-        statusMessageState.value = "🏴‍☠️ TTQ Brute Force scanner stopped"
-        progressState.value = ""
+        nfcDetectionEnabledState.value = false
+        progressState.value = 0f
         
-        if (!stealthModeState.value) {
-            Timber.d("$TAG ⏹️ TTQ Reading stopped")
+        val cardsCount = cardsReadInSessionState.value
+        statusMessageState.value = if (cardsCount > 0) {
+            "🛑 Reading session COMPLETE - $cardsCount cards processed"
+        } else {
+            "🛑 NFC Reading stopped - ready for next session"
         }
+        
+        Timber.d("$TAG NFC Reading stopped - session complete with $cardsCount cards")
+    }
+
+    override fun onProgress(step: String, progress: Int, total: Int) {
+        statusMessageState.value = "Analyzing: $step"
+        progressState.value = if (total > 0) progress.toFloat() / total.toFloat() else 0.1f
+        Timber.d("Progress: $step ($progress/$total)")
     }
 
     override fun onCardDetected() {
-        statusMessageState.value = "💳 Card detected! Reading with ${selectedWorkflowState.value.name} TTQ..."
-        progressState.value = "Connecting to EMV card..."
-        
-        if (!stealthModeState.value) {
-            Timber.d("$TAG 💳 Card detected for TTQ workflow: ${selectedWorkflowState.value.name}")
+        // CRITICAL: Only process card detection if NFC detection is explicitly enabled
+        if (!nfcDetectionEnabledState.value) {
+            Timber.d("$TAG 📱 Card detected but NFC detection DISABLED - ignoring")
+            return
         }
-    }
-
-    override fun onProgress(step: String, current: Int, total: Int) {
-        progressState.value = "Step $current/$total: $step"
         
-        if (!stealthModeState.value) {
-            Timber.d("$TAG 📊 TTQ Progress: $step ($current/$total)")
+        val isStealthMode = stealthModeState.value
+        val isContinuousMode = continuousReadModeState.value
+        
+        if (!isStealthMode) {
+            // Normal mode: Notify user of card detection
+            statusMessageState.value = "📱 Card detected - starting ${selectedWorkflowState.value.name} workflow"
+            Timber.d("$TAG 📱 Card detected - NFC detection enabled, starting workflow")
+        } else {
+            // Stealth mode: Silent detection
+            Timber.d("$TAG 🥷 Card detected - STEALTH MODE, silent processing")
         }
+        
+        // Clear previous card data for new read
+        currentCardDataState.value = null
+        apduLogState.value = emptyList()
+        progressState.value = 0.1f
     }
 
     override fun onApduExchanged(apduEntry: ApduLogEntry) {
         val currentLog = apduLogState.value.toMutableList()
         currentLog.add(apduEntry)
         apduLogState.value = currentLog
-        
-        if (!stealthModeState.value) {
-            Timber.d("$TAG 📡 TTQ APDU logged: ${apduEntry.description}")
-        }
+        Timber.d("$TAG APDU exchanged: ${apduEntry.description}")
     }
 
     override fun onCardRead(cardData: EmvCardData) {
-        currentCardDataState.value = cardData
-        emvTagsState.value = cardData.emvTags
-        statusMessageState.value = "✅ ${selectedWorkflowState.value.name} TTQ read complete! Auto-saving to database..."
-        progressState.value = "Processing ${cardData.emvTags.size} EMV tags..."
-        
-        // Auto-save to database (persistent data)
-        cardProfileManager.saveCard(cardData)
-        
-        statusMessageState.value = "🎯 Card saved to persistent database! ${cardData.emvTags.size} EMV tags analyzed"
-        progressState.value = if (continuousReadModeState.value) "Continuous mode - ready for next card" else "Single read complete"
-        
-        // Auto-stop after read if not in continuous mode
-        if (autoStopAfterReadState.value && !continuousReadModeState.value) {
-            nfcCardReader.stopReading()
-        }
-        
-        if (!stealthModeState.value) {
-            Timber.d("$TAG ✅ TTQ Workflow read complete: PAN=${cardData.pan}, Tags=${cardData.emvTags.size}, Workflow=${selectedWorkflowState.value.name}")
+        try {
+            val cardUid = cardData.cardUid ?: "Unknown_UID_${System.currentTimeMillis()}"
+            val cardPan = cardData.getUnmaskedPan()
+            
+            Timber.d("$TAG Card data received - UID: $cardUid, PAN: $cardPan, Track2: ${cardData.track2Data}")
+            
+            currentCardDataState.value = cardData
+            emvTagsState.value = cardData.emvTags
+            progressState.value = 1.0f
+            
+            // Increment cards read counter
+            cardsReadInSessionState.value = cardsReadInSessionState.value + 1
+            val cardsCount = cardsReadInSessionState.value
+            
+            // Save to database with UID-based identification (until PAN sorting is implemented)
+            cardProfileManager.saveCard(cardData)
+            
+            val isStealthMode = stealthModeState.value
+            val isContinuousMode = continuousReadModeState.value
+            
+            // Display appropriate status message
+            val panStatus = if (cardPan.isBlank()) "UID: $cardUid" else "PAN: $cardPan"
+            val cardInfo = "${cardData.detectCardType().name} - $panStatus"
+            
+            if (isContinuousMode) {
+                if (!isStealthMode) {
+                    statusMessageState.value = "🔄 Cards read: $cardsCount | Latest: $cardInfo | Waiting for next card..."
+                }
+                Timber.d("$TAG Continuous mode: Card $cardsCount saved - $cardInfo")
+                
+                // In continuous mode, keep scanning for more cards
+                // Reset progress for next card but keep NFC active
+                progressState.value = 0.2f
+                
+            } else {
+                // Single card mode - complete workflow and stop NFC
+                statusMessageState.value = "✅ Workflow COMPLETE: $cardInfo saved to database"
+                
+                if (::nfcCardReader.isInitialized) {
+                    nfcCardReader.stopReading()
+                    nfcDetectionEnabledState.value = false
+                    workflowCompleteState.value = true
+                    Timber.d("$TAG Single card workflow complete - NFC detection DISABLED")
+                }
+                
+                // Final status update
+                statusMessageState.value = "✅ Transaction COMPLETE: $cardInfo | NFC stopped"
+            }
+            
+            Timber.d("$TAG Card processing complete - Final result: $cardInfo, Session total: $cardsCount")
+            
+        } catch (e: Exception) {
+            Timber.e(e, "$TAG Error processing card data")
+            statusMessageState.value = "❌ Error processing card: ${e.message}"
+            progressState.value = 0f
+            
+            // On error, stop NFC detection
+            if (::nfcCardReader.isInitialized) {
+                nfcCardReader.stopReading()
+                nfcDetectionEnabledState.value = false
+            }
         }
     }
 
     override fun onError(error: String) {
-        statusMessageState.value = "❌ TTQ Workflow Error: $error"
-        progressState.value = ""
-        
-        if (!stealthModeState.value) {
-            Timber.e("$TAG ❌ TTQ Workflow error: $error")
-        }
+        statusMessageState.value = "Error: $error"
+        progressState.value = 0f
+        Timber.e("Card reading error: $error")
     }
 }

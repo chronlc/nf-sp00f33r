@@ -9,6 +9,9 @@ data class EmvCardData(
     // Unique identifier
     val id: String = java.util.UUID.randomUUID().toString(),
     
+    // Card Hardware Identifier (from NFC UID)
+    var cardUid: String? = null,
+    
     // Core EMV Data
     var pan: String? = null,
     var track2Data: String? = null,

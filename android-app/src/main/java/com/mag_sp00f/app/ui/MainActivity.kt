@@ -10,7 +10,7 @@ import androidx.core.view.WindowCompat
 import timber.log.Timber
 
 /**
- * 🏴‍☠️ PRODUCTION-GRADE MainActivity with Fragment Navigation
+ * PRODUCTION-GRADE MainActivity with Fragment Navigation
  * Fixed: "5 views stacked" issue by using proper Fragment navigation
  * instead of broken Compose-only navigation that caused UI overlays
  */
@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        Timber.d("🏴‍☠️ MainActivity onCreate - Fragment navigation mode")
+        Timber.d("MainActivity onCreate - Fragment navigation mode")
         
         // Set dark status bar and navigation bar
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -57,13 +57,13 @@ class MainActivity : AppCompatActivity() {
                     Timber.d("📡 Navigation: Read Card selected")
                     CardReadingFragment()
                 }
-                R.id.nav_emulate -> {
-                    Timber.d("💳 Navigation: Emulation selected")
-                    EmulationFragment()
-                }
                 R.id.nav_database -> {
-                    Timber.d("💾 Navigation: Database selected") 
+                    Timber.d("� Navigation: Database selected") 
                     CardDatabaseFragment()
+                }
+                R.id.nav_emulate -> {
+                    Timber.d("� Navigation: Emulation selected")
+                    EmulationFragment()
                 }
                 R.id.nav_analysis -> {
                     Timber.d("📈 Navigation: Analysis selected")

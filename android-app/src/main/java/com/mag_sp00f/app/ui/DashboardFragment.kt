@@ -36,7 +36,7 @@ import com.mag_sp00f.app.ui.theme.MagSp00fTheme
 import timber.log.Timber
 
 /**
- * 🏴‍☠️ PRODUCTION-GRADE Dashboard Fragment
+ * PRODUCTION-GRADE Dashboard Fragment
  * Fixed: Fragment navigation, no more UI overlays
  */
 class DashboardFragment : Fragment() {
@@ -105,8 +105,8 @@ class DashboardFragment : Fragment() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            "EMV Security Research Platform",
-                            color = Color(0xFF00FF00),
+                            "nf-sp00f",
+                            color = Color(0xFF006600),
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center

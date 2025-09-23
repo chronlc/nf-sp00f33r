@@ -868,8 +868,13 @@ class NfcCardReader(
     }
 
     private fun buildCardDataFromTags(emvTags: Map<String, String>, aids: List<String>, apduLog: MutableList<ApduLogEntry>): EmvCardData {
+        // Extract PAN from tag 5A first, then from Track2 if not available
+        val pan = emvTags["5A"] ?: extractPanFromTrack2(emvTags["57"])
+        
+        Timber.d("$TAG 🔍 PAN extraction - Tag 5A: ${emvTags["5A"]}, Track2: ${emvTags["57"]}, Final PAN: $pan")
+        
         return EmvCardData(
-            pan = emvTags["5A"],
+            pan = pan,
             cardholderName = emvTags["5F20"]?.let { 
                 tryHexToString(it).takeIf { it != emvTags["5F20"] }
             },
@@ -884,5 +889,27 @@ class NfcCardReader(
             availableAids = aids,
             apduLog = apduLog
         )
+    }
+    
+    /**
+     * Extract PAN from Track2 data if tag 5A is not available
+     * Track2 format: PAN + separator (D) + expiry + service code + discretionary data
+     */
+    private fun extractPanFromTrack2(track2Hex: String?): String? {
+        if (track2Hex.isNullOrEmpty()) return null
+        
+        try {
+            // Track2 data contains PAN followed by 'D' separator
+            val separatorIndex = track2Hex.indexOf('D', ignoreCase = true)
+            if (separatorIndex > 0) {
+                val pan = track2Hex.substring(0, separatorIndex)
+                Timber.d("$TAG 💳 Extracted PAN from Track2: $pan")
+                return pan
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "$TAG ⚠️ Error extracting PAN from Track2: $track2Hex")
+        }
+        
+        return null
     }
 }

@@ -196,11 +196,17 @@ class NfcCardReaderWithWorkflows(
     
     override fun onTagDiscovered(tag: android.nfc.Tag?) {
         tag?.let { discoveredTag ->
+            // EXTRACT NFC UID IMMEDIATELY - this is critical hardware data
+            val cardUid = discoveredTag.id?.let { uidBytes ->
+                uidBytes.joinToString("") { "%02X".format(it) }
+            } ?: "UNKNOWN_UID"
+            
+            Timber.d("$TAG 🏷️ NFC Tag discovered - UID: $cardUid")
             callback.onCardDetected()
             
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    val cardData = readEmvCardWithWorkflow(discoveredTag)
+                    val cardData = readEmvCardWithWorkflow(discoveredTag, cardUid)
                     withContext(Dispatchers.Main) {
                         callback.onCardRead(cardData)
                     }
@@ -258,22 +264,47 @@ class NfcCardReaderWithWorkflows(
                 Timber.d("$TAG ⚡ Using workflow TTQ: ${currentWorkflow.ttqValue}")
                 
                 val gpoCommand = buildGpoCommandWithWorkflow(pdolHex, currentWorkflow)
+                Timber.d("$TAG 📡 Sending GPO command: ${bytesToHex(gpoCommand)}")
+                
                 val gpoResponse = sendCommandWithFullLogging(isoDep, gpoCommand, "GET PROCESSING OPTIONS [${currentWorkflow.name}]", apduLog)
                 
                 if (gpoResponse.isNotEmpty()) {
-                    parseRfidiotTlvResponse(gpoResponse, emvTags, "GPO Response")
-                    Timber.d("$TAG ⚡ GPO processed with workflow ${currentWorkflow.name}, total tags: ${emvTags.size}")
+                    val statusWord = if (gpoResponse.size >= 2) {
+                        "${String.format("%02X", gpoResponse[gpoResponse.size - 2])}" +
+                        "${String.format("%02X", gpoResponse[gpoResponse.size - 1])}"
+                    } else "0000"
                     
-                    // Step 4: READ APPLICATION DATA (AFL processing)
-                    callback.onProgress("Reading application data (${currentWorkflow.name})", 4, 6)
-                    val afl = emvTags["94"]
-                    if (afl != null) {
-                        readApplicationDataWithWorkflow(isoDep, afl, emvTags, apduLog, currentWorkflow)
+                    Timber.d("$TAG 📥 GPO Response: ${bytesToHex(gpoResponse)} [Status: $statusWord]")
+                    
+                    if (statusWord == "9000") {
+                        parseRfidiotTlvResponse(gpoResponse, emvTags, "GPO Response")
+                        Timber.d("$TAG ⚡ GPO SUCCESS with workflow ${currentWorkflow.name}, total tags: ${emvTags.size}")
+                        
+                        // Step 4: READ APPLICATION DATA (AFL processing)
+                        callback.onProgress("Reading application data (${currentWorkflow.name})", 4, 6)
+                        val afl = emvTags["94"]
+                        if (afl != null) {
+                            readApplicationDataWithWorkflow(isoDep, afl, emvTags, apduLog, currentWorkflow)
+                        }
+                        
+                        // Step 5: Workflow-specific additional commands
+                        callback.onProgress("Workflow-specific commands (${currentWorkflow.name})", 5, 6)
+                        executeWorkflowSpecificCommands(isoDep, emvTags, apduLog, currentWorkflow)
+                    } else {
+                        Timber.w("$TAG ❌ GPO FAILED with status $statusWord for workflow ${currentWorkflow.name}")
+                        Timber.w("$TAG 🔧 Attempting fallback GPO with minimal PDOL...")
+                        
+                        // Try fallback with minimal GPO
+                        val fallbackGpo = byteArrayOf(0x80.toByte(), 0xA8.toByte(), 0x00, 0x00, 0x02, 0x83.toByte(), 0x00)
+                        val fallbackResponse = sendCommandWithFullLogging(isoDep, fallbackGpo, "GET PROCESSING OPTIONS [Fallback]", apduLog)
+                        
+                        if (fallbackResponse.isNotEmpty()) {
+                            parseRfidiotTlvResponse(fallbackResponse, emvTags, "GPO Fallback Response")
+                            Timber.d("$TAG ✅ GPO Fallback successful, continuing...")
+                        }
                     }
-                    
-                    // Step 5: Workflow-specific additional commands
-                    callback.onProgress("Workflow-specific commands (${currentWorkflow.name})", 5, 6)
-                    executeWorkflowSpecificCommands(isoDep, emvTags, apduLog, currentWorkflow)
+                } else {
+                    Timber.e("$TAG ❌ GPO returned empty response for workflow ${currentWorkflow.name}")
                 }
             }
             
@@ -927,8 +958,13 @@ class NfcCardReaderWithWorkflows(
     }
     
     private fun buildCardDataFromTags(emvTags: Map<String, String>, aids: List<String>, apduLog: MutableList<ApduLogEntry>): EmvCardData {
+        // Extract PAN from tag 5A first, then from Track2 if not available
+        val pan = emvTags["5A"] ?: extractPanFromTrack2(emvTags["57"])
+        
+        Timber.d("$TAG 🔍 PAN extraction - Tag 5A: ${emvTags["5A"]}, Track2: ${emvTags["57"]}, Final PAN: $pan")
+        
         return EmvCardData(
-            pan = emvTags["5A"],
+            pan = pan,
             cardholderName = emvTags["5F20"]?.let { 
                 tryHexToString(it).takeIf { it != emvTags["5F20"] }
             },
@@ -943,5 +979,27 @@ class NfcCardReaderWithWorkflows(
             availableAids = aids,
             apduLog = apduLog
         )
+    }
+    
+    /**
+     * Extract PAN from Track2 data if tag 5A is not available
+     * Track2 format: PAN + separator (D) + expiry + service code + discretionary data
+     */
+    private fun extractPanFromTrack2(track2Hex: String?): String? {
+        if (track2Hex.isNullOrEmpty()) return null
+        
+        try {
+            // Track2 data contains PAN followed by 'D' separator
+            val separatorIndex = track2Hex.indexOf('D', ignoreCase = true)
+            if (separatorIndex > 0) {
+                val pan = track2Hex.substring(0, separatorIndex)
+                Timber.d("$TAG 💳 Extracted PAN from Track2: $pan")
+                return pan
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "$TAG ⚠️ Error extracting PAN from Track2: $track2Hex")
+        }
+        
+        return null
     }
 }

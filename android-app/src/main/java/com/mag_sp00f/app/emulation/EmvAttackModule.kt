@@ -4,6 +4,7 @@ package com.mag_sp00f.app.emulation
  * EMV Attack Module Interface
  * Base interface for all EMV attack modules implementing specific attack vectors
  * Based on attack_module_architecture.md specifications
+ * Updated for production-grade attack module system
  */
 interface EmvAttackModule {
     
@@ -37,16 +38,22 @@ interface EmvAttackModule {
     fun applyAttack(command: ByteArray, response: ByteArray, cardData: Map<String, Any>): ByteArray
     
     /**
-     * Get current attack status and statistics
-     * @return Map containing attack status information
-     */
-    fun getAttackStatus(): Map<String, Any>
-    
-    /**
-     * Configure attack parameters
-     * @param config Configuration parameters map
+     * Configure the attack module with runtime parameters
+     * @param config Configuration map with attack-specific parameters
      */
     fun configure(config: Map<String, Any>)
+    
+    /**
+     * Get current configuration of the attack module
+     * @return Current configuration map
+     */
+    fun getConfiguration(): Map<String, Any>
+    
+    /**
+     * Get attack statistics and performance metrics
+     * @return Statistics map including attack count, success rate, etc.
+     */
+    fun getAttackStatistics(): Map<String, Any>
     
     /**
      * Reset attack statistics and state

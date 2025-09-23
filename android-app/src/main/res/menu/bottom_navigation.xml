@@ -12,14 +12,14 @@
         android:title="Read" />
     
     <item
-        android:id="@+id/nav_emulate"
-        android:icon="@drawable/ic_phone_android"
-        android:title="Emulate" />
-    
-    <item
         android:id="@+id/nav_database"
         android:icon="@drawable/ic_storage"
         android:title="Database" />
+    
+    <item
+        android:id="@+id/nav_emulate"
+        android:icon="@drawable/ic_phone_android"
+        android:title="Emulate" />
     
     <item
         android:id="@+id/nav_analysis"

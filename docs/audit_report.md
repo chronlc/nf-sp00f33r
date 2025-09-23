@@ -1,32 +1,45 @@
 # Code Audit Report
 
-Generated: 2025-09-23 01:47:03
+Generated: 2025-09-23 13:42:44
 
 ## Summary
-- Total issues found: 38
-- High severity: 38
-- Medium severity: 0
+- Total issues found: 63
+- High severity: 61
+- Medium severity: 2
 
 ## Detailed Findings
 
+### android-app/src/main/java/com/mag_sp00f/app/emulation/modules/CvmBypassModule.kt
+- [HIGH] Line 111: Found placeholder/stub code: // Manipulate CVM Results (9F34) to show successful bypass
+- [HIGH] Line 206: Found placeholder/stub code: * Manipulate CVM Results (tag 9F34) to show successful bypass
+
 ### android-app/src/main/java/com/mag_sp00f/app/cardreading/CardProfileManager.kt
-- [HIGH] Line 69: Potential duplicate of getRecentCards
+- [HIGH] Line 183: Potential duplicate of getRecentCards
+
+### android-app/src/main/java/com/mag_sp00f/app/models/CardProfile.kt
+- [MEDIUM] Line 59: Legacy code marker found: @Deprecated("Use getUnmaskedPan() for EMV security research")
+
+### android-app/src/main/java/com/mag_sp00f/app/ui/CardReadingFragment.kt
+- [HIGH] Line 564: Found placeholder/stub code: // Stub implementations for remaining composables
 
 ### android-app/src/main/java/com/mag_sp00f/app/ui/CardCreatorDialog.kt
-- [HIGH] Line 88: Found placeholder/stub code: placeholder = { Text("4154904674973556") },
-- [HIGH] Line 106: Found placeholder/stub code: placeholder = { Text("2902") },
-- [HIGH] Line 118: Found placeholder/stub code: placeholder = { Text("CARDHOLDER/VISA") }
+- [HIGH] Line 87: Found placeholder/stub code: placeholder = { Text("Enter 16-19 digit PAN from real card") },
+- [HIGH] Line 103: Found placeholder/stub code: placeholder = { Text("MMYY from real card") },
+- [HIGH] Line 119: Found placeholder/stub code: placeholder = { Text("Name from real card") },
+- [HIGH] Line 134: Found placeholder/stub code: placeholder = { Text("Real Track2 from NFC read") },
+- [HIGH] Line 149: Found placeholder/stub code: placeholder = { Text("AIP hex from real card") },
+- [HIGH] Line 164: Found placeholder/stub code: placeholder = { Text("AFL hex from real card") },
 
 ### android-app/src/main/java/com/mag_sp00f/app/ui/CardEditorDialog.kt
-- [HIGH] Line 57: Found placeholder/stub code: placeholder = { Text("4154904674973556") }
-- [HIGH] Line 68: Found placeholder/stub code: placeholder = { Text("2902") }
-- [HIGH] Line 79: Found placeholder/stub code: placeholder = { Text("CARDHOLDER/VISA") }
-- [HIGH] Line 90: Found placeholder/stub code: placeholder = { Text("4154904674973556D29022010000820083001F") }
-- [HIGH] Line 101: Found placeholder/stub code: placeholder = { Text("2000") }
-- [HIGH] Line 112: Found placeholder/stub code: placeholder = { Text("10010301") }
+- [HIGH] Line 57: Found placeholder/stub code: placeholder = { Text("Enter 16-digit PAN") }
+- [HIGH] Line 68: Found placeholder/stub code: placeholder = { Text("MMYY format") }
+- [HIGH] Line 79: Found placeholder/stub code: placeholder = { Text("Enter cardholder name") }
+- [HIGH] Line 90: Found placeholder/stub code: placeholder = { Text("Enter Track2 data") }
+- [HIGH] Line 101: Found placeholder/stub code: placeholder = { Text("Enter AIP hex") }
+- [HIGH] Line 112: Found placeholder/stub code: placeholder = { Text("Enter AFL hex") }
 
-### android-app/src/main/java/com/mag_sp00f/app/ui/MainActivity.kt
-- [HIGH] Line 377: Found placeholder/stub code: // TODO: Pass card data to fragment for details view
+### android-app/src/main/java/com/mag_sp00f/app/data/EmvCardData.kt
+- [MEDIUM] Line 101: Legacy code marker found: @Deprecated("Use getUnmaskedPan() for EMV security research")
 
 ### android-app/build/intermediates/incremental/debug/mergeDebugResources/merger.xml
 - [HIGH] Line 178: Found placeholder/stub code: </declare-styleable><declare-styleable name="SplitPlaceholderRule">
@@ -49,10 +62,30 @@ Generated: 2025-09-23 01:47:03
 - [HIGH] Line 6166: Found placeholder/stub code: <attr format="string" name="placeholderText"/>
 - [HIGH] Line 6168: Found placeholder/stub code: <attr format="reference" name="placeholderTextAppearance"/>
 - [HIGH] Line 6170: Found placeholder/stub code: <attr format="color" name="placeholderTextColor"/>
-- [HIGH] Line 7670: Found placeholder/stub code: </declare-styleable><declare-styleable name="ConstraintLayout_placeholder"><attr name="placeholder_emptyVisibility"/><attr name="content"/></declare-styleable><declare-styleable name="DrawerArrowToggle">
-- [HIGH] Line 7823: Found placeholder/stub code: </declare-styleable><declare-styleable name="ViewStubCompat">
-- [HIGH] Line 8320: Found placeholder/stub code: </declare-styleable><declare-styleable name="KeyTrigger"><attr name="framePosition"/><attr name="motionTarget"/><attr format="reference" name="triggerReceiver"/><attr format="string" name="onNegativeCross"/><attr format="string" name="onPositiveCross"/><attr format="string" name="onCross"/><attr format="float" name="triggerSlack"/><attr format="reference" name="triggerId"/><attr format="boolean" name="motion_postLayoutCollision"/><attr format="reference" name="motion_triggerOnCollision"/></declare-styleable><declare-styleable name="SplitPlaceholderRule">
-- [HIGH] Line 8322: Found placeholder/stub code: <attr format="string" name="placeholderActivityName"/>
-- [HIGH] Line 8421: Found placeholder/stub code: <attr format="string" name="placeholderText"/>
-- [HIGH] Line 8423: Found placeholder/stub code: <attr format="reference" name="placeholderTextAppearance"/>
-- [HIGH] Line 8425: Found placeholder/stub code: <attr format="color" name="placeholderTextColor"/>
+- [HIGH] Line 7677: Found placeholder/stub code: </declare-styleable><declare-styleable name="ConstraintLayout_placeholder"><attr name="placeholder_emptyVisibility"/><attr name="content"/></declare-styleable><declare-styleable name="DrawerArrowToggle">
+- [HIGH] Line 7830: Found placeholder/stub code: </declare-styleable><declare-styleable name="ViewStubCompat">
+- [HIGH] Line 8327: Found placeholder/stub code: </declare-styleable><declare-styleable name="KeyTrigger"><attr name="framePosition"/><attr name="motionTarget"/><attr format="reference" name="triggerReceiver"/><attr format="string" name="onNegativeCross"/><attr format="string" name="onPositiveCross"/><attr format="string" name="onCross"/><attr format="float" name="triggerSlack"/><attr format="reference" name="triggerId"/><attr format="boolean" name="motion_postLayoutCollision"/><attr format="reference" name="motion_triggerOnCollision"/></declare-styleable><declare-styleable name="SplitPlaceholderRule">
+- [HIGH] Line 8329: Found placeholder/stub code: <attr format="string" name="placeholderActivityName"/>
+- [HIGH] Line 8428: Found placeholder/stub code: <attr format="string" name="placeholderText"/>
+- [HIGH] Line 8430: Found placeholder/stub code: <attr format="reference" name="placeholderTextAppearance"/>
+- [HIGH] Line 8432: Found placeholder/stub code: <attr format="color" name="placeholderTextColor"/>
+
+### android-app/build/intermediates/incremental/debug/mergeDebugResources/merged.dir/values/values.xml
+- [HIGH] Line 325: Found placeholder/stub code: <attr name="placeholder_emptyVisibility">
+- [HIGH] Line 1118: Found placeholder/stub code: <item name="textinput_placeholder" type="id"/>
+- [HIGH] Line 1338: Found placeholder/stub code: <string description="Placeholder for a single date [CHAR_LIMIT=60]" name="mtrl_picker_date_header_unselected">Selected date</string>
+- [HIGH] Line 1346: Found placeholder/stub code: <string description="Placeholders for two dates separated by a dash representing a range where end date has been selected [CHAR_LIMIT=60]" name="mtrl_picker_range_header_only_end_selected">Start date – %1$s</string>
+- [HIGH] Line 1347: Found placeholder/stub code: <string description="Placeholders for two dates separated by a dash representing a range where start date has been selected [CHAR_LIMIT=60]" name="mtrl_picker_range_header_only_start_selected">%1$s – End date</string>
+- [HIGH] Line 1350: Found placeholder/stub code: <string description="Placeholders for two dates separated by a dash representing a range [CHAR_LIMIT=60]" name="mtrl_picker_range_header_unselected">Start date – End date</string>
+- [HIGH] Line 3419: Found placeholder/stub code: <item name="placeholderTextAppearance">?attr/textAppearanceSubtitle1</item>
+- [HIGH] Line 3429: Found placeholder/stub code: <item name="placeholderTextColor">@color/mtrl_indicator_text_color</item>
+- [HIGH] Line 3927: Found placeholder/stub code: <style name="TextAppearance.Design.Placeholder" parent="TextAppearance.AppCompat.Body1"/>
+- [HIGH] Line 4579: Found placeholder/stub code: <item name="placeholderTextAppearance">@style/TextAppearance.Design.Placeholder</item>
+- [HIGH] Line 4588: Found placeholder/stub code: <item name="placeholderTextColor">@null</item>
+- [HIGH] Line 6504: Found placeholder/stub code: <declare-styleable name="ConstraintLayout_placeholder"><attr name="placeholder_emptyVisibility"/><attr name="content"/></declare-styleable>
+- [HIGH] Line 7612: Found placeholder/stub code: <declare-styleable name="SplitPlaceholderRule">
+- [HIGH] Line 7614: Found placeholder/stub code: <attr format="string" name="placeholderActivityName"/>
+- [HIGH] Line 7889: Found placeholder/stub code: <attr format="string" name="placeholderText"/>
+- [HIGH] Line 7891: Found placeholder/stub code: <attr format="reference" name="placeholderTextAppearance"/>
+- [HIGH] Line 7893: Found placeholder/stub code: <attr format="color" name="placeholderTextColor"/>
+- [HIGH] Line 8148: Found placeholder/stub code: <declare-styleable name="ViewStubCompat">
