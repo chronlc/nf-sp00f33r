@@ -1,14 +1,15 @@
-# mag-sp00f: Advanced Magstripe Emulation & Security Analysis
+# nf-sp00f33r: Advanced EMV Card Analysis & Security Research Tool
 
 ## 🎯 Project Overview
 
-**mag-sp00f** is a sophisticated Android 14+ application designed for security researchers and analysts to emulate, test, and analyze magstripe card implementations using cutting-edge contactless technology. The application leverages Android Host Card Emulation (HCE) to provide comprehensive APDU command analysis and supports both standard contactless magstripe emulation and legacy magstripe downgrade capabilities.
+**nf-sp00f33r** is a sophisticated Android 14+ application designed for security researchers and analysts to analyze, test, and emulate EMV card implementations using cutting-edge NFC technology. The application provides comprehensive EMV workflow analysis, real-time APDU transaction logging, and supports both contactless card reading and Host Card Emulation (HCE) for security research.
 
 ### 🏗️ Project Identity
-- **Application Name:** mag-sp00f
-- **Package Identifier:** com.mag-sp00f.app
+- **Application Name:** nf-sp00f33r
+- **Repository:** https://github.com/chronlc/nf-sp00f33r
+- **Package Identifier:** com.mag_sp00f.app
 - **Target Platform:** Android 14+ (API Level 34+)
-- **Primary Use Case:** Security research and magstripe vulnerability assessment
+- **Primary Use Case:** EMV security research and vulnerability assessment
 
 ---
 
