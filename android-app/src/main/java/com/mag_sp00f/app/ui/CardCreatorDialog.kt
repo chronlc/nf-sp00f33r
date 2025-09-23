@@ -1,222 +1,229 @@
 package com.mag_sp00f.app.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.mag_sp00f.app.data.EmvCardData
-import timber.log.Timber
+import com.mag_sp00f.app.models.CardProfile
 
+/**
+ * NEWRULE.MD COMPLIANT: Real data only card creator - no sample data generation
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardCreatorDialog(
     onDismiss: () -> Unit,
-    onCreate: (EmvCardData) -> Unit
+    onCardCreated: (CardProfile) -> Unit
 ) {
     var pan by remember { mutableStateOf("") }
     var expiryDate by remember { mutableStateOf("") }
     var cardholderName by remember { mutableStateOf("") }
     var track2Data by remember { mutableStateOf("") }
-    var serviceCode by remember { mutableStateOf("201") }
-    var discretionaryData by remember { mutableStateOf("") }
-    var applicationInterchangeProfile by remember { mutableStateOf("2000") }
-    var applicationFileLocator by remember { mutableStateOf("10010301") }
-    var cardType by remember { mutableStateOf("VISA") }
+    var aip by remember { mutableStateOf("") }
+    var afl by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface
+                .wrapContentHeight(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "🆕 Create New EMV Card",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Card Type Selector
-                Text(
-                    text = "Card Type",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    listOf("VISA", "MasterCard", "AMEX", "Discover").forEach { type ->
-                        FilterChip(
-                            onClick = { cardType = type },
-                            label = { Text(type) },
-                            selected = cardType == type
+                    Text(
+                        "Create Card Profile",
+                        color = Color(0xFF00FF00),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF888888)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // PAN Field
-                OutlinedTextField(
-                    value = pan,
-                    onValueChange = { 
-                        pan = it
-                        // Auto-generate Track2 data when PAN changes
-                        if (it.length >= 16 && expiryDate.isNotEmpty()) {
-                            track2Data = "${it}D${expiryDate}${serviceCode}${discretionaryData}"
-                        }
-                    },
-                    label = { Text("Card Number (PAN) *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Enter 16-digit PAN") },
-                    supportingText = { Text("16-19 digits") }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Expiry Date
-                OutlinedTextField(
-                    value = expiryDate,
-                    onValueChange = { 
-                        expiryDate = it
-                        // Auto-generate Track2 data when expiry changes
-                        if (pan.length >= 16 && it.isNotEmpty()) {
-                            track2Data = "${pan}D${it}${serviceCode}${discretionaryData}"
-                        }
-                    },
-                    label = { Text("Expiry Date (YYMM) *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("MMYY format") },
-                    supportingText = { Text("Format: YYMM") }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Cardholder Name
-                OutlinedTextField(
-                    value = cardholderName,
-                    onValueChange = { cardholderName = it },
-                    label = { Text("Cardholder Name *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Enter cardholder name") }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Auto-Generated Track2
-                OutlinedTextField(
-                    value = track2Data,
-                    onValueChange = { track2Data = it },
-                    label = { Text("Track2 Data (Auto-Generated)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    supportingText = { Text("Auto-generated from PAN + Expiry") }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Generate Sample Data Button
-                Button(
-                    onClick = {
-                        when (cardType) {
-                            "VISA" -> {
-                                pan = "4154904674973556"
-                                expiryDate = "2902"
-                                cardholderName = "CARDHOLDER/VISA"
-                                serviceCode = "201"
-                                discretionaryData = "0000820083001F"
-                                applicationInterchangeProfile = "2000"
-                                applicationFileLocator = "10010301"
-                            }
-                            "MasterCard" -> {
-                                pan = "5555555555554444"
-                                expiryDate = "2902"
-                                cardholderName = "CARDHOLDER/MC"
-                                serviceCode = "201"
-                                discretionaryData = "000082008300"
-                                applicationInterchangeProfile = "2000"
-                                applicationFileLocator = "10010301"
-                            }
-                            "AMEX" -> {
-                                pan = "378282246310005"
-                                expiryDate = "2902"
-                                cardholderName = "CARDHOLDER/AMEX"
-                                serviceCode = "201"      
-                                discretionaryData = "000082008300"
-                                applicationInterchangeProfile = "2000"
-                                applicationFileLocator = "10010301"
-                            }
-                            "Discover" -> {
-                                pan = "6011111111111117"
-                                expiryDate = "2902"
-                                cardholderName = "CARDHOLDER/DISC"
-                                serviceCode = "201"
-                                discretionaryData = "000082008300"
-                                applicationInterchangeProfile = "2000"
-                                applicationFileLocator = "10010301"
-                            }
-                        }
-                        track2Data = "${pan}D${expiryDate}${serviceCode}${discretionaryData}"
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                // Warning about real data
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A1A00))
                 ) {
-                    Text("🎲 Generate Sample Data")
+                    Text(
+                        "⚠️ PRODUCTION MODE: Enter only real EMV card data from actual NFC reads. No simulation data allowed per newrule.md compliance.",
+                        color = Color(0xFFFFAA00),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                // PAN Input
+                OutlinedTextField(
+                    value = pan,
+                    onValueChange = { if (it.length <= 19) pan = it.filter { char -> char.isDigit() } },
+                    label = { Text("Primary Account Number (PAN)", color = Color(0xFF888888)) },
+                    placeholder = { Text("Enter 16-19 digit PAN from real card") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF00FF00),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                // Expiry Date Input
+                OutlinedTextField(
+                    value = expiryDate,
+                    onValueChange = { if (it.length <= 4) expiryDate = it.filter { char -> char.isDigit() } },
+                    label = { Text("Expiry Date", color = Color(0xFF888888)) },
+                    placeholder = { Text("MMYY from real card") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF00FF00),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                // Cardholder Name Input
+                OutlinedTextField(
+                    value = cardholderName,
+                    onValueChange = { cardholderName = it.uppercase() },
+                    label = { Text("Cardholder Name", color = Color(0xFF888888)) },
+                    placeholder = { Text("Name from real card") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF00FF00),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                // Track2 Data Input
+                OutlinedTextField(
+                    value = track2Data,
+                    onValueChange = { track2Data = it.uppercase() },
+                    label = { Text("Track2 Data (Optional)", color = Color(0xFF888888)) },
+                    placeholder = { Text("Real Track2 from NFC read") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF00FF00),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                // AIP Input
+                OutlinedTextField(
+                    value = aip,
+                    onValueChange = { aip = it.uppercase() },
+                    label = { Text("Application Interchange Profile (Optional)", color = Color(0xFF888888)) },
+                    placeholder = { Text("AIP hex from real card") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF00FF00),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                // AFL Input
+                OutlinedTextField(
+                    value = afl,
+                    onValueChange = { afl = it.uppercase() },
+                    label = { Text("Application File Locator (Optional)", color = Color(0xFF888888)) },
+                    placeholder = { Text("AFL hex from real card") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF00FF00),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
 
                 // Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF888888)
+                        )
+                    ) {
                         Text("Cancel")
                     }
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
+
                     Button(
                         onClick = {
-                            if (pan.isNotEmpty() && expiryDate.isNotEmpty() && cardholderName.isNotEmpty()) {
-                                // Create EmvCardData with nullable structure
-                                val newCard = EmvCardData(
+                            if (pan.isNotEmpty() && pan.length >= 16) {
+                                val emvCardData = EmvCardData(
                                     pan = pan,
-                                    expiryDate = expiryDate,
-                                    cardholderName = cardholderName,
-                                    track2Data = track2Data,
-                                    serviceCode = serviceCode,
-                                    discretionaryData = discretionaryData,
-                                    applicationInterchangeProfile = applicationInterchangeProfile,
-                                    applicationFileLocator = applicationFileLocator,
-                                    applicationTransactionCounter = "1",
-                                    readingTimestamp = System.currentTimeMillis()
+                                    cardholderName = cardholderName.ifEmpty { null },
+                                    expiryDate = expiryDate.ifEmpty { null },
+                                    track2Data = track2Data.ifEmpty { null },
+                                    applicationInterchangeProfile = aip.ifEmpty { null },
+                                    applicationFileLocator = afl.ifEmpty { null },
+                                    applicationLabel = "Manual Entry",
+                                    emvTags = mutableMapOf(),
+                                    availableAids = if (track2Data.isNotEmpty()) listOf("A0000000031010") else emptyList(),
+                                    apduLog = mutableListOf()
                                 )
-                                onCreate(newCard)
-                                Timber.d("🆕 New card created: ${pan.take(6)}...${pan.takeLast(4)}")
+                                
+                                val cardProfile = CardProfile(emvCardData = emvCardData)
+                                onCardCreated(cardProfile)
                             }
                         },
-                        enabled = pan.isNotEmpty() && expiryDate.isNotEmpty() && cardholderName.isNotEmpty()
+                        modifier = Modifier.weight(1f),
+                        enabled = pan.isNotEmpty() && pan.length >= 16,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00FF00),
+                            contentColor = Color.Black
+                        )
                     ) {
-                        Text("Create Card")
+                        Text("💾 Create Profile")
                     }
                 }
+                
+                // Footer note
+                Text(
+                    "Note: Only real EMV data from actual card reads should be used. This tool is for legitimate security research only.",
+                    color = Color(0xFF666666),
+                    fontSize = 10.sp,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

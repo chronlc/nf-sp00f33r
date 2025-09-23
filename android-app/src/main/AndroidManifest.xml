@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- NFC permissions for Host Card Emulation -->
+    <!-- NFC permissions -->
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature
         android:name="android.hardware.nfc"
@@ -11,31 +11,35 @@
         android:name="android.hardware.nfc.hce"
         android:required="true" />
 
-    <!-- Bluetooth permissions for PN532 HC-06 connectivity -->
+    <!-- Bluetooth permissions for PN532 HC-06 adapter -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
-    <!-- USB Serial permissions for PN532 USB connectivity -->
+    <!-- USB permissions for PN532 direct USB connection -->
     <uses-permission android:name="android.permission.USB_PERMISSION" />
-    <uses-feature android:name="android.hardware.usb.host" />
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
 
-    <!-- Network permissions for development and testing -->
+    <!-- Internet for logging and updates -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- Storage for card database and backup -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
-    <!-- Storage permissions for logging and data export -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
+    <!-- Wake lock to prevent sleep during card operations -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
-        android:icon="@android:drawable/ic_menu_info_details"
-        android:label="@string/app_name"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@drawable/nfspoof3"
+        android:label="nf-sp00f"
+        android:roundIcon="@drawable/nfspoof3"
         android:supportsRtl="true"
         android:theme="@style/Theme.MagSp00f"
         tools:targetApi="31">
@@ -44,55 +48,36 @@
         <activity
             android:name=".ui.SplashActivity"
             android:exported="true"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+            android:theme="@style/Theme.MagSp00f.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- Main Activity with Navigation Drawer -->
+        <!-- Main Activity -->
         <activity
             android:name=".ui.MainActivity"
-            android:exported="false"
+            android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.MagSp00f">
-            
-            <!-- DISABLED: NFC Intent Filters - Let CardReadingFragment control NFC when START clicked -->
-            <!--
-            <intent-filter>
-                <action android:name="android.nfc.action.TAG_DISCOVERED" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
+            <!-- NFC intent filters for card reading -->
             <intent-filter>
                 <action android:name="android.nfc.action.TECH_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
-                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <action android:name="android.nfc.action.TAG_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="*/*" />
             </intent-filter>
-            -->
-            
-            <!-- DISABLED: NFC Tech Filter Meta-data -->
-            <!--
-            <meta-data android:name="android.nfc.action.TECH_DISCOVERED"
+            <meta-data
+                android:name="android.nfc.action.TECH_DISCOVERED"
                 android:resource="@xml/nfc_tech_filter" />
-            -->
         </activity>
 
-        <!-- Card Reading Activity -->
-        <activity
-            android:name=".cardreading.ui.CardReadingActivity"
-            android:exported="false"
-            android:label="Card Reading"
-            android:parentActivityName=".ui.MainActivity"
-            android:theme="@style/Theme.MagSp00f" />
-
-        <!-- NFC Host Card Emulation Service -->
+        <!-- Enhanced HCE Service for EMV Emulation -->
         <service
-            android:name=".nfc.EnhancedHceService"
+            android:name=".cardreading.EnhancedHceService"
             android:exported="true"
             android:permission="android.permission.BIND_NFC_SERVICE">
             <intent-filter>
@@ -102,6 +87,29 @@
                 android:name="android.nfc.cardemulation.host_apdu_service"
                 android:resource="@xml/apduservice" />
         </service>
+
+        <!-- USB Device Filter for PN532 -->
+        <activity
+            android:name=".hardware.UsbDeviceActivity"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/device_filter" />
+        </activity>
+
+        <!-- File Provider for secure file sharing -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

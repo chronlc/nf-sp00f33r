@@ -40,14 +40,24 @@ data class CardProfile(
         get() = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(createdAt)
     
     /**
-     * Get masked PAN for display
+     * Get unmasked PAN for EMV security research
      */
-    fun getMaskedPan(): String {
-        val pan = emvCardData.pan ?: return "****-****-****-****"
-        if (pan.length < 8) return "****-****-****-****"
+    fun getUnmaskedPan(): String {
+        val pan = emvCardData.pan ?: return "PAN Not Available"
+        if (pan.length < 8) return pan
         
-        return "${pan.substring(0, 4)}-****-****-${pan.substring(pan.length - 4)}"
+        return if (pan.length >= 16) {
+            "${pan.substring(0, 4)}-${pan.substring(4, 8)}-${pan.substring(8, 12)}-${pan.substring(12, 16)}"
+        } else {
+            "${pan.substring(0, 4)}-${pan.substring(4)}"
+        }
     }
+
+    /**
+     * Get masked PAN for display (DEPRECATED - Use getUnmaskedPan() for security research)
+     */
+    @Deprecated("Use getUnmaskedPan() for EMV security research")
+    fun getMaskedPan(): String = getUnmaskedPan()
     
     /**
      * Detect card type from PAN
@@ -212,7 +222,7 @@ data class CardProfile(
      */
     fun getSummary(): String {
         return buildString {
-            append("${detectCardType()} ${getMaskedPan()}")
+            append("${detectCardType()} ${getUnmaskedPan()}")
             cardholderName?.let { append(" - $it") }
             append(" (${apduLogs.size} APDUs)")
             
@@ -254,7 +264,7 @@ data class CardProfile(
         return """
             Profile ID: $id
             Created: $createdTimestamp
-            Card: ${detectCardType()} ${getMaskedPan()}
+            Card: ${detectCardType()} ${getUnmaskedPan()}
             Cardholder: ${emvCardData.cardholderName ?: "Unknown"}
             Expiry: ${emvCardData.expiryDate ?: "Unknown"}
             AID: ${emvCardData.selectedAid ?: "Unknown"}

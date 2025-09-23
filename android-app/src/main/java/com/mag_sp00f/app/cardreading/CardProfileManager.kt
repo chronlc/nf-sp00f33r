@@ -7,10 +7,44 @@ import timber.log.Timber
 /**
  * Manager for card profiles with full EMV data and APDU logs
  * Per newrule.md: Production-grade, real-data-only, no simulation
+ * Singleton pattern for shared state across fragments
  */
-class CardProfileManager {
+class CardProfileManager private constructor() {
+    
+    companion object {
+        @Volatile
+        private var INSTANCE: CardProfileManager? = null
+        
+        fun getInstance(): CardProfileManager {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: CardProfileManager().also { INSTANCE = it }
+            }
+        }
+    }
     
     private val cardProfiles = mutableListOf<CardProfile>()
+    private val listeners = mutableSetOf<() -> Unit>()
+    
+    /**
+     * Add listener for real-time updates
+     */
+    fun addListener(listener: () -> Unit) {
+        listeners.add(listener)
+    }
+    
+    /**
+     * Remove listener
+     */
+    fun removeListener(listener: () -> Unit) {
+        listeners.remove(listener)
+    }
+    
+    /**
+     * Notify all listeners of changes
+     */
+    private fun notifyListeners() {
+        listeners.forEach { it.invoke() }
+    }
     
     /**
      * Save EMV card data as a new card profile
@@ -20,7 +54,8 @@ class CardProfileManager {
             emvCardData = cardData
         )
         cardProfiles.add(profile)
-        Timber.d("💾 Card saved: ${cardData.cardholderName ?: "Unknown"}")
+        Timber.d("💾 Card saved: ${cardData.cardholderName ?: "Unknown"} | Total: ${cardProfiles.size}")
+        notifyListeners() // Notify UI updates
     }
     
     /**
@@ -49,6 +84,7 @@ class CardProfileManager {
      */
     fun saveCardProfile(profile: CardProfile) {
         cardProfiles.add(profile)
+        notifyListeners()
     }
     
     /**
@@ -64,6 +100,7 @@ class CardProfileManager {
     fun deleteCardProfile(id: String) {
         cardProfiles.removeAll { it.id == id }
         Timber.d("🗑️ Card profile deleted: $id")
+        notifyListeners()
     }
     
     /**
@@ -104,6 +141,7 @@ class CardProfileManager {
         val count = cardProfiles.size
         cardProfiles.clear()
         Timber.d("🧹 Cleared $count card profiles")
+        notifyListeners()
     }
     
     /**

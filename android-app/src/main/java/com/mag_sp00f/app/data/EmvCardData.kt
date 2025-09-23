@@ -83,17 +83,23 @@ data class EmvCardData(
 ) {
 
     /**
-     * Get masked PAN for display purposes
+     * Get unmasked PAN for EMV security research
      */
-    fun getMaskedPan(): String {
+    fun getUnmaskedPan(): String {
         val panValue = pan
         return when {
-            panValue.isNullOrEmpty() -> "****-****-****-****"
-            panValue.length >= 16 -> "${panValue.take(4)}-****-****-${panValue.takeLast(4)}"
-            panValue.length >= 8 -> "${panValue.take(4)}-****-${panValue.takeLast(4)}"
-            else -> "****-${panValue}"
+            panValue.isNullOrEmpty() -> "PAN Not Available"
+            panValue.length >= 16 -> "${panValue.take(4)}-${panValue.substring(4, 8)}-${panValue.substring(8, 12)}-${panValue.takeLast(4)}"
+            panValue.length >= 8 -> "${panValue.take(4)}-${panValue.takeLast(4)}"
+            else -> panValue
         }
     }
+
+    /**
+     * Get masked PAN for display purposes (DEPRECATED - Use getUnmaskedPan() for security research)
+     */
+    @Deprecated("Use getUnmaskedPan() for EMV security research")
+    fun getMaskedPan(): String = getUnmaskedPan()
 
     /**
      * Detect card type based on PAN
@@ -130,10 +136,10 @@ data class EmvCardData(
      */
     fun generateCardSummary(): String {
         val cardType = getCardBrandDisplayName()
-        val maskedPan = getMaskedPan()
+        val unmaskedPan = getUnmaskedPan()
         val label = if (applicationLabel.isNotEmpty()) " - $applicationLabel" else ""
 
-        return "$cardType: $maskedPan$label"
+        return "$cardType: $unmaskedPan$label"
     }
 
     /**

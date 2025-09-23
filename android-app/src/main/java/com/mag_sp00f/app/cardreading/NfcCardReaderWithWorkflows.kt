@@ -4,6 +4,7 @@ import android.app.Activity
 import android.nfc.NfcAdapter
 import android.nfc.tech.IsoDep
 import com.mag_sp00f.app.data.EmvCardData
+import com.mag_sp00f.app.data.EmvWorkflow
 import com.mag_sp00f.app.data.ApduLogEntry
 import kotlinx.coroutines.*
 import timber.log.Timber
@@ -11,17 +12,17 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * PRODUCTION-GRADE NFC EMV Card Reader with RFIDIOt-based TLV Parsing
- * Based on AdamLaurie/RFIDIOt ChAP.py EMV tag definitions
- * NO HARDCODED DATA - ALL DYNAMIC PDOL PARSING
+ * ENHANCED NFC EMV Card Reader with Workflow Support and TTQ Manipulation
+ * Supports multiple EMV workflows for comprehensive data extraction
+ * Based on RFIDIOt methodology with advanced TTQ manipulation
  */
-class NfcCardReader(
+class NfcCardReaderWithWorkflows(
     private val activity: Activity,
     private val callback: CardReadingCallback
 ) : NfcAdapter.ReaderCallback {
     
     companion object {
-        private const val TAG = "🏴‍☠️ NfcCardReader"
+        private const val TAG = "🏴‍☠️ NfcCardReaderWorkflows"
         
         // EMV Command APDUs
         private val SELECT_PPSE = byteArrayOf(
@@ -35,12 +36,12 @@ class NfcCardReader(
          */
         private val EMV_TAGS = mapOf(
             "4F" to "Application Identifier (AID)",
-            "50" to "Application Label",
+            "50" to "Application Label", 
             "57" to "Track 2 Equivalent Data",
             "5A" to "Application Primary Account Number (PAN)",
             "5F20" to "Cardholder Name",
             "5F24" to "Application Expiry Date",
-            "5F25" to "Application Effective Date", 
+            "5F25" to "Application Effective Date",
             "5F28" to "Issuer Country Code",
             "5F2A" to "Transaction Currency Code",
             "5F2D" to "Language Preference",
@@ -124,7 +125,7 @@ class NfcCardReader(
             "9F38" to "Processing Options Data Object List (PDOL)",
             "9F39" to "Point-of-Service (POS) Entry Mode",
             "9F3A" to "Amount, Reference Currency",
-            "9F3B" to "Currency Code, Application Reference",
+            "9F3B" to "Currency Code, Application Reference", 
             "9F3C" to "Transaction Reference Currency Code",
             "9F3D" to "Transaction Reference Currency Exponent",
             "9F40" to "Additional Terminal Capabilities",
@@ -147,12 +148,22 @@ class NfcCardReader(
             "9F6C" to "Card Transaction Qualifiers",
             "9F7C" to "Customer Exclusive Data",
             "A5" to "File Control Information (FCI) Proprietary Template",
-            "BF0C" to "File Control Information (FCI) Issuer Discretionary Data",
-            "DF01" to "Reference PIN"
+            "BF0C" to "File Control Information (FCI) Issuer Discretionary Data"
         )
     }
     
     private var isReading = false
+    private var currentWorkflow: EmvWorkflow = EmvWorkflow.STANDARD_CONTACTLESS
+    
+    /**
+     * Set the EMV workflow to use for card reading  
+     */
+    fun setWorkflow(workflow: EmvWorkflow) {
+        currentWorkflow = workflow
+        Timber.d("$TAG 🔧 Workflow set to: ${workflow.name} (TTQ: ${workflow.ttqValue})")
+    }
+    
+    fun getCurrentWorkflow(): EmvWorkflow = currentWorkflow
     
     fun startReading() {
         if (!isReading) {
@@ -167,7 +178,7 @@ class NfcCardReader(
                 null
             )
             
-            Timber.d("$TAG 🚀 NFC reader mode enabled")
+            Timber.d("$TAG 🚀 NFC reader mode enabled with workflow: ${currentWorkflow.name}")
         }
     }
     
@@ -189,7 +200,7 @@ class NfcCardReader(
             
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    val cardData = readEmvCard(discoveredTag)
+                    val cardData = readEmvCardWithWorkflow(discoveredTag)
                     withContext(Dispatchers.Main) {
                         callback.onCardRead(cardData)
                     }
@@ -202,7 +213,7 @@ class NfcCardReader(
         }
     }
     
-    private fun readEmvCard(tag: android.nfc.Tag): EmvCardData {
+    private fun readEmvCardWithWorkflow(tag: android.nfc.Tag): EmvCardData {
         val isoDep = IsoDep.get(tag)
         val apduLog = mutableListOf<ApduLogEntry>()
         val emvTags = mutableMapOf<String, String>()
@@ -212,11 +223,12 @@ class NfcCardReader(
             isoDep.connect()
             isoDep.timeout = 5000
             
-            Timber.d("$TAG 🔌 Connected to card")
+            Timber.d("$TAG 🔌 Connected to card with workflow: ${currentWorkflow.name}")
+            Timber.d("$TAG 🏷️ TTQ: ${currentWorkflow.ttqValue} (${EmvWorkflow.analyzeTtq(currentWorkflow.ttqValue)})")
             
             // Step 1: SELECT PPSE
-            callback.onProgress("SELECT PPSE", 1, 5)
-            val ppseResponse = sendCommandWithFullLogging(isoDep, SELECT_PPSE, "SELECT PPSE", apduLog)
+            callback.onProgress("SELECT PPSE (${currentWorkflow.name})", 1, 6)
+            val ppseResponse = sendCommandWithFullLogging(isoDep, SELECT_PPSE, "SELECT PPSE [${currentWorkflow.name}]", apduLog)
             
             if (ppseResponse.isNotEmpty()) {
                 val ppseAids = parsePpseResponse(ppseResponse, emvTags)
@@ -230,59 +242,48 @@ class NfcCardReader(
             aids.add(selectedAid)
             
             // Step 2: SELECT AID
-            callback.onProgress("SELECT AID", 2, 5)
+            callback.onProgress("SELECT AID (${currentWorkflow.name})", 2, 6)
             val selectAidCommand = buildSelectAidCommand(selectedAid)
-            val aidResponse = sendCommandWithFullLogging(isoDep, selectAidCommand, "SELECT AID ($selectedAid)", apduLog)
+            val aidResponse = sendCommandWithFullLogging(isoDep, selectAidCommand, "SELECT AID ($selectedAid) [${currentWorkflow.name}]", apduLog)
             
             if (aidResponse.isNotEmpty()) {
-                // Detailed SELECT AID response breakdown
-                Timber.d("$TAG 📋 SELECT AID Response Breakdown:")
-                Timber.d("$TAG    Raw Response: ${bytesToHex(aidResponse)}")
-                
                 parseRfidiotTlvResponse(aidResponse, emvTags, "AID Response")
                 Timber.d("$TAG 💳 AID selected, parsed ${emvTags.size} total tags")
                 
-                // Log key EMV tags from SELECT AID response
-                emvTags["50"]?.let { Timber.d("$TAG 🏷️  Application Label: ${tryHexToString(it)}") }
-                emvTags["87"]?.let { Timber.d("$TAG 🏷️  Application Priority Indicator: $it") }
-                emvTags["9F38"]?.let { Timber.d("$TAG 🏷️  PDOL: $it") }
-                emvTags["5F2D"]?.let { Timber.d("$TAG 🏷️  Language Preference: ${tryHexToString(it)}") }
+                // Step 3: GET PROCESSING OPTIONS with workflow-specific TTQ
+                callback.onProgress("GET PROCESSING OPTIONS (${currentWorkflow.name})", 3, 6)
                 
-                // Step 3: GET PROCESSING OPTIONS (GPO) with REAL DYNAMIC PDOL parsing
-                callback.onProgress("GET PROCESSING OPTIONS", 3, 5)
-                
-                // Use the PDOL extracted by TLV parsing - NO FALLBACKS
                 val pdolHex = emvTags["9F38"] ?: ""
-                
                 Timber.d("$TAG 🔧 PDOL from card: $pdolHex")
-                Timber.d("$TAG 🚨 USING DYNAMIC PDOL PARSING - NO HARDCODED DATA!")
+                Timber.d("$TAG ⚡ Using workflow TTQ: ${currentWorkflow.ttqValue}")
                 
-                if (pdolHex.isNotEmpty()) {
-                    Timber.d("$TAG 📖 PDOL breakdown:")
-                    parsePdolTemplate(pdolHex)
-                }
-                
-                val gpoCommand = buildGpoCommandWithRfidiotParsing(pdolHex)
-                val gpoResponse = sendCommandWithFullLogging(isoDep, gpoCommand, "GET PROCESSING OPTIONS", apduLog)
+                val gpoCommand = buildGpoCommandWithWorkflow(pdolHex, currentWorkflow)
+                val gpoResponse = sendCommandWithFullLogging(isoDep, gpoCommand, "GET PROCESSING OPTIONS [${currentWorkflow.name}]", apduLog)
                 
                 if (gpoResponse.isNotEmpty()) {
                     parseRfidiotTlvResponse(gpoResponse, emvTags, "GPO Response")
-                    Timber.d("$TAG ⚡ GPO processed, total tags: ${emvTags.size}")
+                    Timber.d("$TAG ⚡ GPO processed with workflow ${currentWorkflow.name}, total tags: ${emvTags.size}")
                     
                     // Step 4: READ APPLICATION DATA (AFL processing)
-                    callback.onProgress("Reading application data", 4, 5)
+                    callback.onProgress("Reading application data (${currentWorkflow.name})", 4, 6)
                     val afl = emvTags["94"]
                     if (afl != null) {
-                        readApplicationData(isoDep, afl, emvTags, apduLog)
+                        readApplicationDataWithWorkflow(isoDep, afl, emvTags, apduLog, currentWorkflow)
                     }
+                    
+                    // Step 5: Workflow-specific additional commands
+                    callback.onProgress("Workflow-specific commands (${currentWorkflow.name})", 5, 6)
+                    executeWorkflowSpecificCommands(isoDep, emvTags, apduLog, currentWorkflow)
                 }
             }
             
-            // Step 5: Build comprehensive card data
-            callback.onProgress("Processing EMV data", 5, 5)
+            // Step 6: Build comprehensive card data
+            callback.onProgress("Processing EMV data (${currentWorkflow.name})", 6, 6)
             val cardData = buildCardDataFromTags(emvTags, aids, apduLog)
             
-            Timber.d("$TAG 🎉 EMV workflow complete: PAN=${cardData.pan}, Tags=${emvTags.size}")
+            Timber.d("$TAG 🎉 EMV workflow ${currentWorkflow.name} complete: PAN=${cardData.pan}, Tags=${emvTags.size}")
+            logWorkflowResults(cardData, currentWorkflow)
+            
             return cardData
             
         } finally {
@@ -295,8 +296,293 @@ class NfcCardReader(
     }
     
     /**
-     * Send APDU command with comprehensive TX/RX logging
+     * Build GPO command with workflow-specific TTQ and terminal capabilities
      */
+    private fun buildGpoCommandWithWorkflow(pdolHex: String, workflow: EmvWorkflow): ByteArray {
+        Timber.d("$TAG 🔧 Building GPO with workflow: ${workflow.name}")
+        Timber.d("$TAG 🏷️ TTQ: ${workflow.ttqValue}, Terminal Caps: ${workflow.terminalCapabilities}")
+        
+        return if (pdolHex.isNotEmpty() && pdolHex != "00") {
+            try {
+                val pdolData = buildPdolDataWithWorkflow(pdolHex, workflow)
+                Timber.d("$TAG 💎 Workflow PDOL data constructed: ${bytesToHex(pdolData)}")
+                
+                val template = byteArrayOf(0x83.toByte(), pdolData.size.toByte()) + pdolData
+                
+                val command = ByteArray(5 + template.size)
+                command[0] = 0x80.toByte()
+                command[1] = 0xA8.toByte()
+                command[2] = 0x00
+                command[3] = 0x00
+                command[4] = (template.size and 0xFF).toByte()
+                System.arraycopy(template, 0, command, 5, template.size)
+                
+                Timber.d("$TAG ✅ Workflow GPO command: ${bytesToHex(command)}")
+                command
+                
+            } catch (e: Exception) {
+                Timber.w("$TAG ⚠️ Workflow PDOL parsing failed: ${e.message}")
+                byteArrayOf(0x80.toByte(), 0xA8.toByte(), 0x00, 0x00, 0x02, 0x83.toByte(), 0x00)
+            }
+        } else {
+            Timber.d("$TAG ⚠️ Using minimal GPO command (no PDOL)")
+            byteArrayOf(0x80.toByte(), 0xA8.toByte(), 0x00, 0x00, 0x02, 0x83.toByte(), 0x00)
+        }
+    }
+    
+    /**
+     * Build PDOL data with workflow-specific terminal capabilities and TTQ
+     */
+    private fun buildPdolDataWithWorkflow(pdolHex: String, workflow: EmvWorkflow): ByteArray {
+        val result = mutableListOf<Byte>()
+        val pdolBytes = hexToBytes(pdolHex)
+        
+        // Current date/time for real terminal data
+        val calendar = Calendar.getInstance()
+        val dateFormat = SimpleDateFormat("yyMMdd", Locale.US)
+        val timeFormat = SimpleDateFormat("HHmmss", Locale.US)
+        val currentDate = dateFormat.format(calendar.time)
+        val currentTime = timeFormat.format(calendar.time)
+        
+        var offset = 0
+        while (offset < pdolBytes.size) {
+            val tagData = parseTagAtOffset(pdolBytes, offset)
+            val tag = tagData.first
+            val tagSize = tagData.second
+            
+            offset += tagSize
+            if (offset >= pdolBytes.size) break
+            
+            val length = pdolBytes[offset].toInt() and 0xFF
+            offset++
+            
+            val tagHex = bytesToHex(tag).uppercase()
+            
+            Timber.d("$TAG 🏷️ PDOL requests: $tagHex (${EMV_TAGS[tagHex] ?: "Unknown"}) - ${length} bytes")
+            
+            // Provide workflow-specific terminal data
+            val data = when (tagHex) {
+                "9F02" -> createAmountData(1000) // Amount, Authorized
+                "9F03" -> createAmountData(0) // Amount, Other
+                "9F1A" -> hexToBytes("0840") // Terminal Country Code (US)
+                "95" -> createTvrData() // Terminal Verification Results
+                "5F2A" -> hexToBytes("0840") // Transaction Currency Code (USD)
+                "9A" -> hexToBytes(currentDate) // Transaction Date (real YYMMDD)
+                "9C" -> byteArrayOf(0x00) // Transaction Type (Purchase)
+                "9F37" -> createUnpredictableNumber() // Real unpredictable number
+                "9F35" -> byteArrayOf(0x22) // Terminal Type
+                "9F45" -> hexToBytes("FFFF") // Data Authentication Code
+                "9F21" -> hexToBytes(currentTime) // Transaction Time (real HHMMSS)
+                "9F66" -> hexToBytes(workflow.ttqValue) // 🚨 WORKFLOW-SPECIFIC TTQ
+                "9F33" -> hexToBytes(workflow.terminalCapabilities) // 🚨 WORKFLOW-SPECIFIC Terminal Capabilities
+                "9F40" -> hexToBytes(workflow.additionalCapabilities) // 🚨 WORKFLOW-SPECIFIC Additional Capabilities
+                "9F7C" -> ByteArray(16) { 0x00 } // Customer Exclusive Data
+                else -> {
+                    ByteArray(length) { 0x00 }.also {
+                        Timber.w("$TAG ⚠️ Unknown PDOL tag $tagHex, using $length zeros")
+                    }
+                }
+            }
+            
+            val finalData = when {
+                data.size > length -> data.copyOf(length)
+                data.size < length -> data + ByteArray(length - data.size) { 0x00 }
+                else -> data
+            }
+            
+            result.addAll(finalData.toList())
+            
+            // Log workflow-specific values
+            if (tagHex == "9F66") {
+                Timber.d("$TAG 🚨 TTQ (9F66) -> ${workflow.ttqValue} [${workflow.name}]")
+            } else if (tagHex == "9F33") {
+                Timber.d("$TAG 🚨 Terminal Capabilities (9F33) -> ${workflow.terminalCapabilities} [${workflow.name}]")
+            } else {
+                Timber.d("$TAG 💎 PDOL $tagHex -> ${bytesToHex(finalData)}")
+            }
+        }
+        
+        val resultArray = result.toByteArray()
+        Timber.d("$TAG ✨ Workflow PDOL data built: ${bytesToHex(resultArray)} (${resultArray.size} bytes)")
+        return resultArray
+    }
+    
+    /**
+     * Execute workflow-specific commands for enhanced data extraction
+     */
+    private fun executeWorkflowSpecificCommands(
+        isoDep: IsoDep,
+        emvTags: MutableMap<String, String>,
+        apduLog: MutableList<ApduLogEntry>,
+        workflow: EmvWorkflow
+    ) {
+        Timber.d("$TAG 🔧 Executing workflow-specific commands for: ${workflow.name}")
+        
+        when (workflow.id) {
+            "offline_forced" -> {
+                // Try to extract offline PIN data
+                executeOfflinePinCommands(isoDep, emvTags, apduLog)
+            }
+            "cvm_required" -> {
+                // Extract CVM list and preferences
+                extractCvmData(isoDep, emvTags, apduLog)
+            }
+            "issuer_auth" -> {
+                // Extract issuer authentication data
+                extractIssuerAuthData(isoDep, emvTags, apduLog)
+            }
+            "enhanced_discovery" -> {
+                // Execute all possible commands for maximum data extraction
+                executeMaximalDiscovery(isoDep, emvTags, apduLog)
+            }
+        }
+    }
+    
+    private fun executeOfflinePinCommands(isoDep: IsoDep, emvTags: MutableMap<String, String>, apduLog: MutableList<ApduLogEntry>) {
+        // GET CHALLENGE command for offline PIN
+        val getChallengeCmd = byteArrayOf(0x84.toByte(), 0x84.toByte(), 0x00, 0x00, 0x08)
+        val challengeResponse = sendCommandWithFullLogging(isoDep, getChallengeCmd, "GET CHALLENGE [Offline PIN]", apduLog)
+        
+        if (challengeResponse.isNotEmpty()) {
+            Timber.d("$TAG 📝 Challenge for offline PIN: ${bytesToHex(challengeResponse)}")
+        }
+    }
+    
+    private fun extractCvmData(isoDep: IsoDep, emvTags: MutableMap<String, String>, apduLog: MutableList<ApduLogEntry>) {
+        // Try to read CVM list if available
+        val cvmList = emvTags["8E"]
+        if (cvmList != null) {
+            Timber.d("$TAG �� CVM List extracted: $cvmList")
+            
+            // Analyze CVM methods
+            analyzeCvmList(cvmList)
+        }
+    }
+    
+    private fun extractIssuerAuthData(isoDep: IsoDep, emvTags: MutableMap<String, String>, apduLog: MutableList<ApduLogEntry>) {
+        // Try INTERNAL AUTHENTICATE command
+        val internalAuthCmd = byteArrayOf(0x88.toByte(), 0x88.toByte(), 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+        val authResponse = sendCommandWithFullLogging(isoDep, internalAuthCmd, "INTERNAL AUTHENTICATE [Issuer Auth]", apduLog)
+        
+        if (authResponse.isNotEmpty()) {
+            parseRfidiotTlvResponse(authResponse, emvTags, "Issuer Auth Response")
+        }
+    }
+    
+    private fun executeMaximalDiscovery(isoDep: IsoDep, emvTags: MutableMap<String, String>, apduLog: MutableList<ApduLogEntry>) {
+        // Execute all discovery commands
+        executeOfflinePinCommands(isoDep, emvTags, apduLog)
+        extractCvmData(isoDep, emvTags, apduLog)
+        extractIssuerAuthData(isoDep, emvTags, apduLog)
+        
+        // Additional discovery commands
+        tryAdditionalDiscoveryCommands(isoDep, emvTags, apduLog)
+    }
+    
+    private fun tryAdditionalDiscoveryCommands(isoDep: IsoDep, emvTags: MutableMap<String, String>, apduLog: MutableList<ApduLogEntry>) {
+        // GET DATA commands for additional information
+        val getDataCommands = listOf(
+            Pair(byteArrayOf(0x80.toByte(), 0xCA.toByte(), 0x9F.toByte(), 0x13, 0x00), "GET DATA - ATC Register"),
+            Pair(byteArrayOf(0x80.toByte(), 0xCA.toByte(), 0x9F.toByte(), 0x17, 0x00), "GET DATA - PIN Try Counter"),
+            Pair(byteArrayOf(0x80.toByte(), 0xCA.toByte(), 0x9F.toByte(), 0x36, 0x00), "GET DATA - ATC"),
+            Pair(byteArrayOf(0x80.toByte(), 0xCA.toByte(), 0x9F.toByte(), 0x4F, 0x00), "GET DATA - Log Format")
+        )
+        
+        for ((command, description) in getDataCommands) {
+            val response = sendCommandWithFullLogging(isoDep, command, description, apduLog)
+            if (response.isNotEmpty()) {
+                parseRfidiotTlvResponse(response, emvTags, description)
+            }
+        }
+    }
+    
+    private fun analyzeCvmList(cvmListHex: String) {
+        try {
+            val cvmBytes = hexToBytes(cvmListHex)
+            if (cvmBytes.size >= 10) {
+                val amountX = ((cvmBytes[0].toInt() and 0xFF) shl 24) or
+                             ((cvmBytes[1].toInt() and 0xFF) shl 16) or
+                             ((cvmBytes[2].toInt() and 0xFF) shl 8) or
+                             (cvmBytes[3].toInt() and 0xFF)
+                
+                val amountY = ((cvmBytes[4].toInt() and 0xFF) shl 24) or
+                             ((cvmBytes[5].toInt() and 0xFF) shl 16) or
+                             ((cvmBytes[6].toInt() and 0xFF) shl 8) or
+                             (cvmBytes[7].toInt() and 0xFF)
+                
+                Timber.d("$TAG 💰 CVM Amount X: $amountX, Amount Y: $amountY")
+                
+                // Analyze CVM rules
+                var offset = 8
+                var ruleIndex = 1
+                while (offset + 1 < cvmBytes.size) {
+                    val cvmCode = cvmBytes[offset].toInt() and 0xFF
+                    val cvmCondition = cvmBytes[offset + 1].toInt() and 0xFF
+                    
+                    val cvmMethod = when (cvmCode and 0x3F) {
+                        0x00 -> "Fail CVM processing"
+                        0x01 -> "Plaintext PIN verification performed by ICC"
+                        0x02 -> "Enciphered PIN verified online"
+                        0x03 -> "Plaintext PIN verification performed by ICC and signature"
+                        0x04 -> "Enciphered PIN verification performed by ICC"
+                        0x05 -> "Enciphered PIN verification performed by ICC and signature"
+                        0x1E -> "Signature"
+                        0x1F -> "No CVM required"
+                        else -> "Unknown CVM method (${String.format("%02X", cvmCode)})"
+                    }
+                    
+                    val condition = when (cvmCondition) {
+                        0x00 -> "Always"
+                        0x01 -> "If unattended cash"
+                        0x02 -> "If not unattended cash and not manual cash and not purchase with cashback"
+                        0x03 -> "If terminal supports the CVM"
+                        0x04 -> "If manual cash"
+                        0x05 -> "If purchase with cashback"
+                        0x06 -> "If transaction is in the application currency and is under Amount X value"
+                        0x07 -> "If transaction is in the application currency and is over Amount X value"
+                        0x08 -> "If transaction is in the application currency and is under Amount Y value"
+                        0x09 -> "If transaction is in the application currency and is over Amount Y value"
+                        else -> "Unknown condition (${String.format("%02X", cvmCondition)})"
+                    }
+                    
+                    Timber.d("$TAG 🔐 CVM Rule $ruleIndex: $cvmMethod - $condition")
+                    
+                    offset += 2
+                    ruleIndex++
+                }
+            }
+        } catch (e: Exception) {
+            Timber.e("$TAG ❌ CVM list analysis failed: ${e.message}")
+        }
+    }
+    
+    private fun logWorkflowResults(cardData: EmvCardData, workflow: EmvWorkflow) {
+        Timber.d("$TAG 📊 Workflow Results for ${workflow.name}:")
+        Timber.d("$TAG    Expected data points: ${workflow.expectedDataPoints}")
+        
+        val extractedDataPoints = mutableListOf<String>()
+        
+        cardData.pan?.let { extractedDataPoints.add("PAN") }
+        cardData.track2Data?.let { extractedDataPoints.add("Track2") }
+        cardData.applicationInterchangeProfile?.let { extractedDataPoints.add("AIP") }
+        cardData.applicationFileLocator?.let { extractedDataPoints.add("AFL") }
+        cardData.applicationLabel?.let { extractedDataPoints.add("App Label") }
+        
+        // Check for workflow-specific data
+        cardData.emvTags["8E"]?.let { extractedDataPoints.add("CVM List") }
+        cardData.emvTags["9F34"]?.let { extractedDataPoints.add("CVM Results") }
+        cardData.emvTags["9F17"]?.let { extractedDataPoints.add("PIN Try Counter") }
+        cardData.emvTags["91"]?.let { extractedDataPoints.add("Issuer Auth Data") }
+        cardData.emvTags["9F46"]?.let { extractedDataPoints.add("ICC Public Key") }
+        cardData.emvTags["8C"]?.let { extractedDataPoints.add("CDOL1") }
+        cardData.emvTags["8D"]?.let { extractedDataPoints.add("CDOL2") }
+        
+        Timber.d("$TAG    Extracted data points: $extractedDataPoints")
+        Timber.d("$TAG    Total EMV tags: ${cardData.emvTags.size}")
+        Timber.d("$TAG    TTQ Analysis: ${EmvWorkflow.analyzeTtq(workflow.ttqValue)}")
+    }
+    
+    // Include all the existing helper methods from the original NfcCardReader
     private fun sendCommandWithFullLogging(
         isoDep: IsoDep,
         command: ByteArray,
@@ -315,7 +601,6 @@ class NfcCardReader(
             val responseHex = bytesToHex(fullResponse)
             val executionTime = endTime - startTime
             
-            // Extract status word
             val statusWord = if (fullResponse.size >= 2) {
                 val sw = ((fullResponse[fullResponse.size - 2].toInt() and 0xFF) shl 8) or
                         (fullResponse[fullResponse.size - 1].toInt() and 0xFF)
@@ -324,7 +609,6 @@ class NfcCardReader(
                 "0000"
             }
             
-            // Get data portion (response without status word)
             val responseData = if (fullResponse.size > 2) {
                 fullResponse.copyOfRange(0, fullResponse.size - 2)
             } else {
@@ -336,7 +620,6 @@ class NfcCardReader(
             Timber.d("$TAG    Status: $statusWord (${getStatusWordMeaning(statusWord)})")
             Timber.d("$TAG    Execution Time: ${executionTime}ms")
             
-            // Create detailed APDU log entry
             val apduEntry = ApduLogEntry(
                 timestamp = System.currentTimeMillis().toString(),
                 command = commandHex,
@@ -348,7 +631,6 @@ class NfcCardReader(
             
             apduLog.add(apduEntry)
             
-            // 🚨 IMMEDIATE real-time callback for UI updates
             try {
                 callback.onApduExchanged(apduEntry)
                 Timber.d("$TAG 📡 Real-time callback sent: $description")
@@ -364,7 +646,6 @@ class NfcCardReader(
             
             Timber.e("$TAG ❌ Command failed: $description", e)
             
-            // Log failed command
             apduLog.add(
                 ApduLogEntry(
                     timestamp = System.currentTimeMillis().toString(),
@@ -380,120 +661,6 @@ class NfcCardReader(
         }
     }
     
-    /**
-     * Build GPO command with RFIDIOt-based PDOL parsing
-     */
-    private fun buildGpoCommandWithRfidiotParsing(pdolHex: String): ByteArray {
-        Timber.d("$TAG 🔧 Building GPO with RFIDIOt PDOL parsing: $pdolHex")
-        
-        return if (pdolHex.isNotEmpty() && pdolHex != "00") {
-            try {
-                // Parse PDOL using RFIDIOt approach
-                val pdolData = buildPdolDataFromRfidiotTemplate(pdolHex)
-                Timber.d("$TAG 💎 RFIDIOt PDOL data constructed: ${bytesToHex(pdolData)}")
-                
-                // Build 83 template for PDOL data
-                val pdolLength = pdolData.size
-                val template = byteArrayOf(0x83.toByte(), pdolLength.toByte()) + pdolData
-                
-                // Build GPO command  
-                val command = ByteArray(5 + template.size)
-                command[0] = 0x80.toByte()  // CLA
-                command[1] = 0xA8.toByte()  // INS (GET PROCESSING OPTIONS)
-                command[2] = 0x00           // P1
-                command[3] = 0x00           // P2
-                command[4] = (template.size and 0xFF).toByte()  // Lc
-                System.arraycopy(template, 0, command, 5, template.size)
-                
-                Timber.d("$TAG ✅ RFIDIOt GPO command: ${bytesToHex(command)}")
-                command
-                
-            } catch (e: Exception) {
-                Timber.w("$TAG ⚠️ RFIDIOt PDOL parsing failed, using minimal GPO: ${e.message}")
-                byteArrayOf(0x80.toByte(), 0xA8.toByte(), 0x00, 0x00, 0x02, 0x83.toByte(), 0x00)
-            }
-        } else {
-            // Fallback: Minimal GPO command
-            Timber.d("$TAG ⚠️ Using minimal GPO command (no PDOL)")
-            byteArrayOf(0x80.toByte(), 0xA8.toByte(), 0x00, 0x00, 0x02, 0x83.toByte(), 0x00)
-        }
-    }
-    
-    /**
-     * Build PDOL data from template using RFIDIOt approach
-     */
-    private fun buildPdolDataFromRfidiotTemplate(pdolHex: String): ByteArray {
-        val result = mutableListOf<Byte>()
-        val pdolBytes = hexToBytes(pdolHex)
-        
-        // Current date/time for real terminal data
-        val calendar = Calendar.getInstance()
-        val dateFormat = SimpleDateFormat("yyMMdd", Locale.US)
-        val timeFormat = SimpleDateFormat("HHmmss", Locale.US)
-        val currentDate = dateFormat.format(calendar.time)
-        val currentTime = timeFormat.format(calendar.time)
-        
-        var offset = 0
-        while (offset < pdolBytes.size) {
-            // Parse tag (RFIDIOt approach)
-            val tagData = parseTagAtOffset(pdolBytes, offset)
-            val tag = tagData.first
-            val tagSize = tagData.second
-            
-            offset += tagSize
-            if (offset >= pdolBytes.size) break
-            
-            // Parse length
-            val length = pdolBytes[offset].toInt() and 0xFF
-            offset++
-            
-            val tagHex = bytesToHex(tag).uppercase()
-            
-            Timber.d("$TAG 🏷️ PDOL requests: $tagHex (${EMV_TAGS[tagHex] ?: "Unknown"}) - ${length} bytes")
-            
-            // Provide real terminal data for each requested tag based on RFIDIOt standards
-            val data = when (tagHex) {
-                "9F02" -> createAmountData(1000) // Amount, Authorized (10.00)
-                "9F03" -> createAmountData(0) // Amount, Other
-                "9F1A" -> hexToBytes("0840") // Terminal Country Code (US)
-                "95" -> createTvrData() // Terminal Verification Results
-                "5F2A" -> hexToBytes("0840") // Transaction Currency Code (USD)
-                "9A" -> hexToBytes(currentDate) // Transaction Date (real YYMMDD)
-                "9C" -> byteArrayOf(0x00) // Transaction Type (Purchase)
-                "9F37" -> createUnpredictableNumber() // Real unpredictable number
-                "9F35" -> byteArrayOf(0x22) // Terminal Type
-                "9F45" -> hexToBytes("FFFF") // Data Authentication Code
-                "9F21" -> hexToBytes(currentTime) // Transaction Time (real HHMMSS)
-                "9F66" -> createTtqData() // Terminal Transaction Qualifiers
-                "9F7C" -> ByteArray(16) { 0x00 } // Customer Exclusive Data
-                else -> {
-                    // Default to zeros for unknown tags
-                    ByteArray(length) { 0x00 }.also {
-                        Timber.w("$TAG ⚠️ Unknown PDOL tag $tagHex, using $length zeros")
-                    }
-                }
-            }
-            
-            // Add data to result, truncating or padding as needed
-            val finalData = when {
-                data.size > length -> data.copyOf(length)
-                data.size < length -> data + ByteArray(length - data.size) { 0x00 }
-                else -> data
-            }
-            
-            result.addAll(finalData.toList())
-            Timber.d("$TAG 💎 PDOL $tagHex -> ${bytesToHex(finalData)}")
-        }
-        
-        val resultArray = result.toByteArray()
-        Timber.d("$TAG ✨ RFIDIOt PDOL data built: ${bytesToHex(resultArray)} (${resultArray.size} bytes)")
-        return resultArray
-    }
-    
-    /**
-     * Parse RFIDIOt TLV response with PROPER NESTED TEMPLATE handling
-     * EMV responses use 6F (FCI Template) -> A5 (FCI Proprietary Template) nesting
-     */
     private fun parseRfidiotTlvResponse(response: ByteArray, emvTags: MutableMap<String, String>, context: String) {
         try {
             Timber.d("$TAG 🔍 $context raw data: ${bytesToHex(response)}")
@@ -505,15 +672,11 @@ class NfcCardReader(
         }
     }
     
-    /**
-     * RECURSIVE TLV parser to handle nested EMV templates (6F, A5, etc.)
-     */
     private fun parseTlvRecursively(data: ByteArray, start: Int, end: Int, emvTags: MutableMap<String, String>, context: String, depth: Int) {
         var offset = start
         val indent = "  ".repeat(depth)
         
         while (offset < end) {
-            // Parse tag
             val tagData = parseTagAtOffset(data, offset)
             val tag = tagData.first
             val tagSize = tagData.second
@@ -521,7 +684,6 @@ class NfcCardReader(
             offset += tagSize
             if (offset >= end) break
             
-            // Parse length
             val lengthData = parseLengthAtOffset(data, offset)
             val length = lengthData.first
             val lengthSize = lengthData.second
@@ -532,22 +694,18 @@ class NfcCardReader(
             val tagHex = bytesToHex(tag).uppercase()
             val tagName = EMV_TAGS[tagHex] ?: "Unknown Tag"
             
-            // CRITICAL: Check if this is a template that contains other TLV data
             val isTemplate = tagHex in listOf("6F", "A5", "70", "77", "80", "61")
             
             if (isTemplate) {
-                Timber.d("$TAG $indent🔧 $context: $tagHex ($tagName) - TEMPLATE (${length} bytes)")
-                // Recursively parse template contents
+                Timber.d("$TAG $indent�� $context: $tagHex ($tagName) - TEMPLATE (${length} bytes)")
                 parseTlvRecursively(data, offset, offset + length, emvTags, "$context/$tagHex", depth + 1)
             } else {
-                // Extract primitive value
                 val value = data.copyOfRange(offset, offset + length)
                 val valueHex = bytesToHex(value)
                 
                 emvTags[tagHex] = valueHex
                 Timber.d("$TAG $indent🏷️ $context: $tagHex ($tagName) = $valueHex")
                 
-                // CRITICAL: Log PDOL extraction specifically
                 if (tagHex == "9F38") {
                     Timber.d("$TAG $indent🚨 PDOL FOUND: $valueHex")
                 }
@@ -557,54 +715,19 @@ class NfcCardReader(
         }
     }
     
-    /**
-     * Parse PDOL template to show what data the card is requesting (RFIDIOt approach)
-     */
-    private fun parsePdolTemplate(pdolHex: String) {
-        try {
-            val pdolBytes = hexToBytes(pdolHex)
-            var offset = 0
-            var entryCount = 1
-            
-            while (offset < pdolBytes.size) {
-                // Parse tag
-                val tagData = parseTagAtOffset(pdolBytes, offset)
-                val tag = tagData.first
-                val tagSize = tagData.second
-                
-                offset += tagSize
-                if (offset >= pdolBytes.size) break
-                
-                // Parse length
-                val length = pdolBytes[offset].toInt() and 0xFF
-                offset++
-                
-                val tagHex = bytesToHex(tag).uppercase()
-                val tagName = EMV_TAGS[tagHex] ?: "Unknown EMV Tag"
-                
-                Timber.d("$TAG    Entry $entryCount: $tagHex ($tagName) - $length bytes")
-                entryCount++
-            }
-        } catch (e: Exception) {
-            Timber.e("$TAG ❌ PDOL template parsing failed: ${e.message}")
-        }
-    }
-    
-    // RFIDIOt helper functions
+    // Include all other helper methods from original NfcCardReader
     private fun parseTagAtOffset(data: ByteArray, offset: Int): Pair<ByteArray, Int> {
         if (offset >= data.size) return Pair(byteArrayOf(), 0)
         
         val firstByte = data[offset].toInt() and 0xFF
         
         return if ((firstByte and 0x1F) == 0x1F) {
-            // Multi-byte tag
             if (offset + 1 < data.size) {
                 Pair(byteArrayOf(data[offset], data[offset + 1]), 2)
             } else {
                 Pair(byteArrayOf(data[offset]), 1)
             }
         } else {
-            // Single byte tag
             Pair(byteArrayOf(data[offset]), 1)
         }
     }
@@ -615,10 +738,8 @@ class NfcCardReader(
         val firstByte = data[offset].toInt() and 0xFF
         
         return if ((firstByte and 0x80) == 0) {
-            // Short form
             Pair(firstByte, 1)
         } else {
-            // Long form
             val lengthOfLength = firstByte and 0x7F
             if (lengthOfLength == 0 || offset + lengthOfLength >= data.size) {
                 Pair(0, 1)
@@ -632,7 +753,6 @@ class NfcCardReader(
         }
     }
     
-    // RFIDIOt data creation functions
     private fun createAmountData(cents: Long): ByteArray {
         return byteArrayOf(
             ((cents shr 40) and 0xFF).toByte(),
@@ -645,7 +765,6 @@ class NfcCardReader(
     }
     
     private fun createTvrData(): ByteArray {
-        // Terminal Verification Results - all bits off for normal transaction
         return ByteArray(5) { 0x00 }
     }
     
@@ -655,12 +774,6 @@ class NfcCardReader(
         return random
     }
     
-    private fun createTtqData(): ByteArray {
-        // Terminal Transaction Qualifiers - standard contactless
-        return hexToBytes("27000000")
-    }
-    
-    // Utility functions
     private fun bytesToHex(bytes: ByteArray): String {
         return bytes.joinToString("") { "%02X".format(it) }
     }
@@ -698,7 +811,6 @@ class NfcCardReader(
         }
     }
     
-    // Additional helper methods
     private fun parsePpseResponse(response: ByteArray, emvTags: MutableMap<String, String>): List<String> {
         val aids = mutableListOf<String>()
         
@@ -707,11 +819,8 @@ class NfcCardReader(
             Timber.d("$TAG    Raw PPSE: ${bytesToHex(response)}")
             
             parseRfidiotTlvResponse(response, emvTags, "PPSE Response")
-            
-            // Parse complex PPSE structure for dynamic AID extraction
             parseComplexPpseStructure(response, aids)
             
-            // Also check simple tag extraction as fallback
             emvTags.forEach { (tag, value) ->
                 if (tag == "4F" && value.isNotEmpty() && !aids.contains(value)) {
                     aids.add(value)
@@ -733,7 +842,6 @@ class NfcCardReader(
     }
     
     private fun parseComplexPpseStructure(response: ByteArray, aids: MutableList<String>) {
-        // Implementation for parsing complex PPSE structures (6F, A5, 61 templates)
         var offset = 0
         
         while (offset < response.size) {
@@ -754,22 +862,22 @@ class NfcCardReader(
             val tagHex = bytesToHex(tag).uppercase()
             
             when (tagHex) {
-                "6F" -> { // FCI Template
+                "6F" -> {
                     Timber.d("$TAG 🗂️ FCI Template found")
                     val fciData = response.copyOfRange(offset, offset + length)
                     parseComplexPpseStructure(fciData, aids)
                 }
-                "A5" -> { // FCI Proprietary Template
+                "A5" -> {
                     Timber.d("$TAG 🏷️ FCI Proprietary Template found")
                     val propData = response.copyOfRange(offset, offset + length)
                     parseComplexPpseStructure(propData, aids)
                 }
-                "61" -> { // Application Template
+                "61" -> {
                     Timber.d("$TAG 📱 Application Template found")
                     val appData = response.copyOfRange(offset, offset + length)
                     parseComplexPpseStructure(appData, aids)
                 }
-                "4F" -> { // AID
+                "4F" -> {
                     val aidHex = bytesToHex(response.copyOfRange(offset, offset + length))
                     if (aidHex.isNotEmpty()) {
                         aids.add(aidHex)
@@ -808,65 +916,16 @@ class NfcCardReader(
         return command
     }
     
-    private fun readApplicationData(isoDep: IsoDep, afl: String, emvTags: MutableMap<String, String>, apduLog: MutableList<ApduLogEntry>) {
-        // AFL processing implementation
-        Timber.d("$TAG 📂 Processing AFL: $afl")
+    private fun readApplicationDataWithWorkflow(
+        isoDep: IsoDep,
+        afl: String,
+        emvTags: MutableMap<String, String>,
+        apduLog: MutableList<ApduLogEntry>,
+        workflow: EmvWorkflow
+    ) {
+        Timber.d("$TAG 📂 Processing AFL with workflow ${workflow.name}: $afl")
     }
     
-    /**
-     * CRITICAL FIX: Extract PDOL directly from SELECT AID response when TLV parsing fails
-     * Searches for 9F38 tag pattern directly in the response bytes
-     */
-    private fun extractPdolFromResponse(response: ByteArray): String {
-        try {
-            val responseHex = bytesToHex(response).uppercase()
-            Timber.d("$TAG 🔍 Searching for PDOL in response: $responseHex")
-            
-            // Look for PDOL tag 9F38 in the response
-            val pdolTagIndex = responseHex.indexOf("9F38")
-            if (pdolTagIndex >= 0) {
-                // Found PDOL tag, extract length and data
-                val lengthPos = pdolTagIndex + 4 // Skip 9F38
-                if (lengthPos + 2 <= responseHex.length) {
-                    val lengthHex = responseHex.substring(lengthPos, lengthPos + 2)
-                    val length = lengthHex.toInt(16) * 2 // Convert to hex string length
-                    val dataPos = lengthPos + 2
-                    
-                    if (dataPos + length <= responseHex.length) {
-                        val pdolData = responseHex.substring(dataPos, dataPos + length)
-                        Timber.d("$TAG ✅ PDOL extracted: $pdolData (length: ${length/2} bytes)")
-                        return pdolData
-                    }
-                }
-            }
-            
-            // Also check for common PDOL patterns
-            val commonPatterns = listOf(
-                "9F0206", // Amount, Authorized (6 bytes)
-                "9F0306", // Amount, Other (6 bytes) 
-                "9F1A02", // Terminal Country Code (2 bytes)
-                "9505",   // Terminal Verification Results (5 bytes)
-                "5F2A02", // Transaction Currency Code (2 bytes)
-                "9A03",   // Transaction Date (3 bytes)
-                "9C01",   // Transaction Type (1 byte)
-                "9F3704"  // Unpredictable Number (4 bytes)
-            )
-            
-            for (pattern in commonPatterns) {
-                if (responseHex.contains(pattern)) {
-                    Timber.d("$TAG 🎯 Found PDOL pattern: $pattern in response")
-                    // Build a basic PDOL based on detected patterns
-                    return "9F02069F03069F1A0295055F2A029A039C019F3704"
-                }
-            }
-            
-        } catch (e: Exception) {
-            Timber.w("$TAG ⚠️ PDOL extraction failed: ${e.message}")
-        }
-        
-        return ""
-    }
-
     private fun buildCardDataFromTags(emvTags: Map<String, String>, aids: List<String>, apduLog: MutableList<ApduLogEntry>): EmvCardData {
         return EmvCardData(
             pan = emvTags["5A"],

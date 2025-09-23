@@ -49,7 +49,7 @@ class CardDatabaseFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        cardManager = CardProfileManager()
+        cardManager = CardProfileManager.getInstance()
         
         return ComposeView(requireContext()).apply {
             setContent {
@@ -76,17 +76,31 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
     
     val scope = rememberCoroutineScope()
     
-    // Load cards on startup
+    // Function to refresh card list
+    val refreshCards = {
+        cardProfiles = cardManager.getAllCardProfiles()
+        Timber.d("🔄 Database refreshed: ${cardProfiles.size} cards")
+    }
+    
+    // Load cards on startup and setup listener for real-time updates
     LaunchedEffect(Unit) {
         scope.launch {
             try {
-                cardProfiles = cardManager.getAllCardProfiles()
+                refreshCards()
+                cardManager.addListener(refreshCards)
                 isLoading = false
-                Timber.d("Database: Loaded ${cardProfiles.size} card profiles")
+                Timber.d("Database: Loaded ${cardProfiles.size} card profiles with real-time updates")
             } catch (e: Exception) {
                 Timber.e(e, "Database: Failed to load card profiles")
                 isLoading = false
             }
+        }
+    }
+    
+    // Cleanup listener on disposal
+    DisposableEffect(Unit) {
+        onDispose {
+            cardManager.removeListener(refreshCards)
         }
     }
     
@@ -318,14 +332,13 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
     if (showCreateDialog) {
         CardCreatorDialog(
             onDismiss = { showCreateDialog = false },
-            onCreate = { emvCardData ->
+            onCardCreated = { cardProfile ->
                 scope.launch {
                     try {
-                        val newProfile = CardProfile(emvCardData = emvCardData)
-                        cardManager.saveCardProfile(newProfile)
+                        cardManager.saveCardProfile(cardProfile)
                         cardProfiles = cardManager.getAllCardProfiles()
                         showCreateDialog = false
-                        Timber.d("Database: Created new card profile: ${emvCardData.pan}")
+                        Timber.d("Database: Created new card profile: ${cardProfile.emvCardData.pan}")
                     } catch (e: Exception) {
                         Timber.e(e, "Database: Failed to create card profile")
                     }
@@ -408,7 +421,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
             onDismissRequest = { showDeleteConfirm = null },
             title = { Text("Delete Card Profile") },
             text = { 
-                Text("Are you sure you want to delete this EMV card profile?\n\n${profile.emvCardData.getMaskedPan()}\n${profile.emvCardData.cardholderName ?: "Unknown Cardholder"}")
+                Text("Are you sure you want to delete this EMV card profile?\n\n${profile.emvCardData.getUnmaskedPan()}\n${profile.emvCardData.cardholderName ?: "Unknown Cardholder"}")
             },
             confirmButton = {
                 TextButton(
@@ -501,7 +514,7 @@ fun CardProfileItem(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "${profile.emvCardData.getMaskedPan()}",
+                        text = "${profile.emvCardData.getUnmaskedPan()}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                     )

@@ -71,4 +71,5 @@ data/private_keys/
 docs/_build/
 docs/html/
 
-# 📞 READY FOR 31337 DEVELOPMENT! 📞
+# 📞 READY FOR 31337 DEVELOPMENT! 📞docs/emv.html
+*.html

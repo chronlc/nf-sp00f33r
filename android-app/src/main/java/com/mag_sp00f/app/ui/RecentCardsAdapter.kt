@@ -127,7 +127,7 @@ class RecentCardsAdapter(
         
         private fun getCardIdentifier(cardData: EmvCardData): String {
             return if (cardData.pan != null && cardData.pan!!.length >= 4) {
-                "****${cardData.pan!!.takeLast(4)}"
+                cardData.pan ?: "PAN Not Available"
             } else {
                 "Unknown"
             }
