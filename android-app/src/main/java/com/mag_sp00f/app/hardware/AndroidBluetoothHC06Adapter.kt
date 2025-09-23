@@ -4,180 +4,138 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import timber.log.Timber
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.*
+import timber.log.Timber
 
 /**
- * Android Bluetooth HC-06 Adapter for PN532
- * 
- * Connects to PN532 via Bluetooth HC-06 adapter directly from Android
- * HC-06 Specs: SSID "PN532", PIN "1234", MAC: 00:14:03:05:5C:CB
- * 
- * Following naming_scheme.md conventions
+ * Android Bluetooth HC-06 adapter for PN532 communication
+ * Per newrule.md: Production-grade implementation with HardwareAdapter interface
  */
 class AndroidBluetoothHC06Adapter(
     private val context: Context,
-    private val targetMacAddress: String = "00:14:03:05:5C:CB"
-) : PN532Adapter {
+    private val deviceAddress: String,
+    private val deviceName: String
+) : HardwareAdapter {
     
     companion object {
-        private const val TAG = "AndroidBluetoothHC06"
-        private val SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        private const val TAG = "AndroidBluetoothHC06Adapter"
+        private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     }
     
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var bluetoothSocket: BluetoothSocket? = null
-    private var targetDevice: BluetoothDevice? = null
+    private var bluetoothDevice: BluetoothDevice? = null
+    private var inputStream: InputStream? = null
+    private var outputStream: OutputStream? = null
     private var isConnected = false
     
-    override suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
+    override fun connect(): Boolean {
         try {
-            Timber.tag(TAG).d("Connecting to PN532 HC-06 at $targetMacAddress")
-            
-            // Get Bluetooth adapter
             bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
             if (bluetoothAdapter == null) {
-                Timber.tag(TAG).e("Bluetooth not supported on this device")
-                return@withContext false
+                Timber.e("$TAG Bluetooth not supported")
+                return false
             }
             
             if (!bluetoothAdapter!!.isEnabled) {
-                Timber.tag(TAG).w("Bluetooth is disabled")
-                return@withContext false
+                Timber.e("$TAG Bluetooth not enabled")
+                return false
             }
             
-            // Find target device
-            targetDevice = bluetoothAdapter!!.getRemoteDevice(targetMacAddress)
-            if (targetDevice == null) {
-                Timber.tag(TAG).e("HC-06 device not found: $targetMacAddress")
-                return@withContext false
+            // Find HC-06 device
+            val pairedDevices = bluetoothAdapter!!.bondedDevices
+            bluetoothDevice = pairedDevices.find { device ->
+                device.name == deviceName || device.address == deviceAddress
+            }
+            
+            if (bluetoothDevice == null) {
+                Timber.e("$TAG HC-06 device not found: $deviceName ($deviceAddress)")
+                return false
             }
             
             // Create socket and connect
-            bluetoothSocket = targetDevice!!.createRfcommSocketToServiceRecord(SPP_UUID)
-            bluetoothAdapter!!.cancelDiscovery() // Cancel discovery for better performance
-            
+            bluetoothSocket = bluetoothDevice!!.createRfcommSocketToServiceRecord(SPP_UUID)
             bluetoothSocket!!.connect()
+            
+            inputStream = bluetoothSocket!!.inputStream
+            outputStream = bluetoothSocket!!.outputStream
+            
             isConnected = true
+            Timber.d("$TAG Connected to HC-06: ${bluetoothDevice!!.name} (${bluetoothDevice!!.address})")
+            return true
             
-            Timber.tag(TAG).i("Connected to PN532 HC-06: ${targetDevice!!.name}")
-            true
-            
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Failed to connect to HC-06")
+        } catch (e: IOException) {
+            Timber.e("$TAG Connection failed: ${e.message}")
             disconnect()
-            false
+            return false
         }
     }
     
     override fun disconnect() {
         try {
-            isConnected = false
+            inputStream?.close()
+            outputStream?.close()
             bluetoothSocket?.close()
+        } catch (e: IOException) {
+            Timber.e("$TAG Disconnect error: ${e.message}")
+        } finally {
+            inputStream = null
+            outputStream = null
             bluetoothSocket = null
-            targetDevice = null
-            Timber.tag(TAG).d("Disconnected from PN532 HC-06")
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Error disconnecting from HC-06")
+            isConnected = false
+            Timber.d("$TAG Disconnected from HC-06")
         }
     }
     
-    override suspend fun sendApduCommand(command: ByteArray): ByteArray? = withContext(Dispatchers.IO) {
-        try {
-            if (!isConnected || bluetoothSocket == null) {
-                Timber.tag(TAG).w("Not connected to HC-06")
-                return@withContext null
-            }
-            
-            val socket = bluetoothSocket!!
-            
-            // Send PN532 frame with APDU
-            val pn532Frame = buildPN532Frame(command)
-            socket.outputStream.write(pn532Frame)
-            socket.outputStream.flush()
-            
-            Timber.tag(TAG).d("TX: ${pn532Frame.toHexString()}")
-            
-            // Read response
-            val response = readPN532Response(socket)
-            if (response != null) {
-                Timber.tag(TAG).d("RX: ${response.toHexString()}")
-            }
-            
-            response
-            
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "APDU transmission failed")
-            null
+    override fun sendCommand(command: ByteArray): ByteArray {
+        if (!isConnected || outputStream == null || inputStream == null) {
+            Timber.e("$TAG Not connected")
+            return byteArrayOf()
         }
-    }
-    
-    private fun buildPN532Frame(apdu: ByteArray): ByteArray {
-        // PN532 InDataExchange frame for card emulation
-        val header = byteArrayOf(
-            0x00, 0x00, 0xFF.toByte(), // Preamble and start
-            0x04, 0xFC.toByte(),        // Length and length checksum
-            0xD4.toByte(), 0x40,        // TFI and InDataExchange command
-            0x01                        // Target number
-        )
         
-        val frame = header + apdu
-        val checksum = (0x100 - (frame.drop(3).sum() and 0xFF)).toByte()
-        
-        return frame + checksum + 0x00.toByte()
-    }
-    
-    private fun readPN532Response(socket: BluetoothSocket): ByteArray? {
         return try {
-            val inputStream = socket.inputStream
-            val buffer = ByteArray(256)
+            // Send command
+            outputStream!!.write(command)
+            outputStream!!.flush()
             
-            // Read with timeout
-            var totalRead = 0
-            val startTime = System.currentTimeMillis()
+            // Wait for response
+            Thread.sleep(50)
             
-            while (totalRead < 6 && (System.currentTimeMillis() - startTime) < 5000) {
-                if (inputStream.available() > 0) {
-                    val bytesRead = inputStream.read(buffer, totalRead, buffer.size - totalRead)
-                    if (bytesRead > 0) {
-                        totalRead += bytesRead
-                    }
-                } else {
-                    Thread.sleep(10)
-                }
-            }
+            // Read response with timeout
+            val buffer = ByteArray(1024)
+            val bytesRead = inputStream!!.read(buffer)
             
-            if (totalRead >= 6) {
-                // Extract APDU response (skip PN532 headers)
-                val responseLength = buffer[3].toInt() and 0xFF
-                if (responseLength > 0 && totalRead >= responseLength + 6) {
-                    buffer.copyOfRange(6, 6 + responseLength - 3)
-                } else {
-                    byteArrayOf(0x90.toByte(), 0x00.toByte()) // Success response
-                }
+            if (bytesRead > 0) {
+                val response = buffer.copyOf(bytesRead)
+                Timber.d("$TAG Command sent: ${command.joinToString("") { "%02X".format(it) }}")
+                Timber.d("$TAG Response: ${response.joinToString("") { "%02X".format(it) }}")
+                response
             } else {
-                null
+                Timber.w("$TAG No response received")
+                byteArrayOf()
             }
             
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Failed to read PN532 response")
-            null
+        } catch (e: IOException) {
+            Timber.e("$TAG Command failed: ${e.message}")
+            byteArrayOf()
+        } catch (e: InterruptedException) {
+            Timber.e("$TAG Command interrupted: ${e.message}")
+            byteArrayOf()
         }
     }
     
     override fun isConnected(): Boolean = isConnected
     
-    override fun getConnectionInfo(): String {
-        return if (isConnected) {
-            "Bluetooth HC-06: ${targetDevice?.name ?: "PN532"} ($targetMacAddress)"
+    override fun getDeviceInfo(): String {
+        return if (isConnected && bluetoothDevice != null) {
+            "HC-06 Bluetooth: ${bluetoothDevice!!.name} (${bluetoothDevice!!.address})"
         } else {
-            "Bluetooth HC-06: Disconnected"
+            "HC-06 Bluetooth: $deviceName ($deviceAddress) - Disconnected"
         }
     }
     
-    private fun ByteArray.toHexString(): String {
-        return joinToString("") { "%02X".format(it) }
-    }
+    override fun getConnectionType(): String = "BLUETOOTH_HC06"
 }
