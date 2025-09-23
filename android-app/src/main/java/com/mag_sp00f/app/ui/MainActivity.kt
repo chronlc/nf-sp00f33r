@@ -518,33 +518,221 @@ class MainActivity : FragmentActivity() {
 
     @Composable
     private fun CardReadingContent() {
+        // Use actual CardReadingFragment functionality embedded in Compose
+        val cardProfileManager = remember { com.mag_sp00f.app.cardreading.CardProfileManager() }
+        
+        // State management
+        var isReading by remember { mutableStateOf(false) }
+        var statusMessage by remember { mutableStateOf("Ready to read card") }
+        var apduLog by remember { mutableStateOf(listOf<com.mag_sp00f.app.data.ApduLogEntry>()) }
+        var currentCardData by remember { mutableStateOf<com.mag_sp00f.app.data.EmvCardData?>(null) }
+        
+        // NFC Reader with WORKING callbacks
+        val nfcCardReader = remember { 
+            com.mag_sp00f.app.cardreading.NfcCardReader(this@MainActivity, object : com.mag_sp00f.app.cardreading.CardReadingCallback {
+                override fun onReadingStarted() {
+                    Log.d(TAG, "🔥 NFC reading started")
+                    isReading = true
+                    statusMessage = "🔍 NFC reader active - Present card to antenna"
+                }
+                
+                override fun onReadingStopped() {
+                    Log.d(TAG, "⚡ NFC reading stopped")
+                    isReading = false
+                    statusMessage = "NFC reader stopped"
+                }
+                
+                override fun onCardRead(cardData: com.mag_sp00f.app.data.EmvCardData) {
+                    Log.d(TAG, "💳 Card read complete: PAN=${cardData.pan}")
+                    
+                    // AUTO-SAVE to database
+                    cardProfileManager.saveCard(cardData)
+                    
+                    // Update UI state
+                    currentCardData = cardData
+                    apduLog = cardData.apduLog
+                    statusMessage = "✅ Card read: ${cardData.getMaskedPan()} | ${cardData.apduLog.size} APDUs | AUTO-SAVED"
+                    
+                    Log.d(TAG, "📊 UI updated with ${cardData.emvTags.size} EMV tags, ${cardData.apduLog.size} APDU commands")
+                }
+                
+                override fun onError(error: String) {
+                    Log.e(TAG, "❌ Card read error: $error")
+                    statusMessage = "❌ Error: $error"
+                    isReading = false
+                }
+                
+                override fun onApduExchanged(apduEntry: com.mag_sp00f.app.data.ApduLogEntry) {
+                    Log.d(TAG, "📡 APDU exchanged: ${apduEntry.description}")
+                    // Add new APDU entry to log in real-time
+                    val currentLog = apduLog.toMutableList()
+                    currentLog.add(apduEntry)
+                    apduLog = currentLog
+                }
+                
+                override fun onCardDetected() {
+                    Log.d(TAG, "💳 Card detected")
+                    statusMessage = "💳 Card detected - Reading..."
+                }
+                
+                override fun onProgress(step: String, progress: Int, total: Int) {
+                    Log.d(TAG, "📊 Progress: $step ($progress/$total)")
+                    statusMessage = "📊 $step ($progress/$total)"
+                }
+            })
+        }
+
         Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF0D1117),
+                            Color(0xFF161B22),
+                            Color(0xFF21262D)
+                        )
+                    )
+                )
+                .padding(16.dp)
         ) {
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(
-                    Icons.Default.CreditCard,
-                    contentDescription = null,
-                    tint = Color(0xFF00FF41),
-                    modifier = Modifier.size(64.dp)
-                )
-                Text(
-                    text = "Card Reading",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00FF41),
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = "NFC card reading functionality coming soon",
-                    fontSize = 14.sp,
-                    color = Color(0xFF7D8590),
-                    textAlign = TextAlign.Center
-                )
+                // Status Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "🏴‍☠️ NFC Card Reader Status",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00FF41),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = statusMessage,
+                            fontSize = 14.sp,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                // Main Control Panel
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "🎛️ Card Reader Controls",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00FF41)
+                        )
+                        
+                        // Primary Control Buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    isReading = true
+                                    statusMessage = "🔍 Starting NFC scan..."
+                                    nfcCardReader.startReading()
+                                },
+                                enabled = !isReading,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF00FF41),
+                                    contentColor = Color.Black
+                                )
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("START", fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    isReading = false
+                                    statusMessage = "NFC reading stopped"
+                                    nfcCardReader.stopReading()
+                                },
+                                enabled = isReading,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFFF4444),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(Icons.Default.Stop, contentDescription = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("STOP", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+                
+                // Live Statistics
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "📊 Live Reading Status",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00FF41),
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            StatCard("APDU", apduLog.size.toString())
+                            StatCard("Cards", if (currentCardData != null) "1" else "0")
+                            StatCard("Status", if (isReading) "Active" else "Ready")
+                            StatCard("NFC", "Online")
+                        }
+                    }
+                }
             }
         }
     }
@@ -584,30 +772,156 @@ class MainActivity : FragmentActivity() {
 
     @Composable
     private fun DatabaseContent() {
+        val cardManager = remember { com.mag_sp00f.app.cardreading.CardProfileManager() }
+        var cardProfiles by remember { mutableStateOf<List<com.mag_sp00f.app.models.CardProfile>>(emptyList()) }
+        
+        LaunchedEffect(Unit) {
+            cardProfiles = cardManager.getAllCardProfiles()
+        }
+        
         Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF0D1117),
+                            Color(0xFF161B22),
+                            Color(0xFF21262D)
+                        )
+                    )
+                )
+                .padding(16.dp)
         ) {
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(
-                    Icons.Default.Storage,
-                    contentDescription = null,
-                    tint = Color(0xFF00FF41),
-                    modifier = Modifier.size(64.dp)
-                )
+                // Header Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "🗃️ Card Database",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00FF41),
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "EMV Profile Management System",
+                            fontSize = 14.sp,
+                            color = Color(0xFF7D8590),
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // Stats Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            StatCard("Total", cardProfiles.size.toString())
+                            StatCard("Ready", "0")
+                            StatCard("Types", "0")
+                        }
+                    }
+                }
+                
+                // Quick Actions
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "⚡ Quick Actions",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00FF41),
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Create", fontSize = 12.sp)
+                            }
+                            
+                            OutlinedButton(
+                                onClick = { },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Search", fontSize = 12.sp)
+                            }
+                            
+                            OutlinedButton(
+                                onClick = { },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Export", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    @Composable
+    private fun StatCard(label: String, value: String) {
+        Card(
+            modifier = Modifier
+                .width(80.dp)
+                .height(60.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF161B22)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
-                    text = "Database",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00FF41),
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = "Card database management coming soon",
+                    text = value,
                     fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00FF41)
+                )
+                Text(
+                    text = label,
+                    fontSize = 10.sp,
                     color = Color(0xFF7D8590),
                     textAlign = TextAlign.Center
                 )
