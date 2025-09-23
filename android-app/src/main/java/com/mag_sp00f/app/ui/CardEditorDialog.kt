@@ -54,7 +54,7 @@ fun CardEditorDialog(
                     onValueChange = { pan = it },
                     label = { Text("Card Number (PAN)") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("4154904674973556") }
+                    placeholder = { Text("Enter 16-digit PAN") }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -65,7 +65,7 @@ fun CardEditorDialog(
                     onValueChange = { expiryDate = it },
                     label = { Text("Expiry Date") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("2902") }
+                    placeholder = { Text("MMYY format") }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -76,7 +76,7 @@ fun CardEditorDialog(
                     onValueChange = { cardholderName = it },
                     label = { Text("Cardholder Name") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("CARDHOLDER/VISA") }
+                    placeholder = { Text("Enter cardholder name") }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -87,7 +87,7 @@ fun CardEditorDialog(
                     onValueChange = { track2Data = it },
                     label = { Text("Track2 Data") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("4154904674973556D29022010000820083001F") }
+                    placeholder = { Text("Enter Track2 data") }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -98,7 +98,7 @@ fun CardEditorDialog(
                     onValueChange = { applicationInterchangeProfile = it },
                     label = { Text("Application Interchange Profile (AIP)") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("2000") }
+                    placeholder = { Text("Enter AIP hex") }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -109,7 +109,7 @@ fun CardEditorDialog(
                     onValueChange = { applicationFileLocator = it },
                     label = { Text("Application File Locator (AFL)") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("10010301") }
+                    placeholder = { Text("Enter AFL hex") }
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))

@@ -8,3 +8,12 @@ buildscript {
         classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.20'
     }
 }
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
+
+wrapper {
+    gradleVersion = '8.4'
+    distributionType = Wrapper.DistributionType.ALL
+}

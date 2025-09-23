@@ -28,7 +28,7 @@ When files show ANY of these symptoms:
 - Mixed naming conventions
 - Syntax errors from patching
 
-**IMMEDIATE ACTION:** Delete entire file → Regenerate from scratch with ALL requirements → Verify syntax → Write clean production code
+**IMMEDIATE ACTION:** Delete entire file → Regenerate from scratch with ALL requirements → Verify syntax → Write clean production code, use terminal text editor approach
 
 ### 📋 LARGE FILE HANDLING
 For files exceeding agent view window:

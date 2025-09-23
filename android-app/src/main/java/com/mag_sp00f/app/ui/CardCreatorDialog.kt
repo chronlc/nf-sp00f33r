@@ -85,7 +85,7 @@ fun CardCreatorDialog(
                     },
                     label = { Text("Card Number (PAN) *") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("4154904674973556") },
+                    placeholder = { Text("Enter 16-digit PAN") },
                     supportingText = { Text("16-19 digits") }
                 )
 
@@ -103,7 +103,7 @@ fun CardCreatorDialog(
                     },
                     label = { Text("Expiry Date (YYMM) *") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("2902") },
+                    placeholder = { Text("MMYY format") },
                     supportingText = { Text("Format: YYMM") }
                 )
 
@@ -115,7 +115,7 @@ fun CardCreatorDialog(
                     onValueChange = { cardholderName = it },
                     label = { Text("Cardholder Name *") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("CARDHOLDER/VISA") }
+                    placeholder = { Text("Enter cardholder name") }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))

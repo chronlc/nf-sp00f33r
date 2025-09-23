@@ -10,10 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,9 +32,9 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /**
- * 💾 PRODUCTION-GRADE Card Database Fragment
- * Complete EMV card profile management with search, CRUD operations, and elite UI
- * NO SIMPLIFIED CODE - FULL PRODUCTION FUNCTIONALITY per newrule.md
+ * Card Database Management Fragment
+ * Complete EMV card profile management with search, CRUD operations, and modern UI
+ * Full production functionality for professional EMV analysis
  */
 class CardDatabaseFragment : Fragment() {
     
@@ -73,6 +70,8 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
     var showCreateDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf<CardProfile?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<CardProfile?>(null) }
+    var showImportExportDialog by remember { mutableStateOf(false) }
+    var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
     
     val scope = rememberCoroutineScope()
@@ -83,9 +82,9 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
             try {
                 cardProfiles = cardManager.getAllCardProfiles()
                 isLoading = false
-                Timber.d("💾 [DB] Loaded ${cardProfiles.size} card profiles")
+                Timber.d("Database: Loaded ${cardProfiles.size} card profiles")
             } catch (e: Exception) {
-                Timber.e(e, "💾 [DB] Failed to load card profiles")
+                Timber.e(e, "Database: Failed to load card profiles")
                 isLoading = false
             }
         }
@@ -134,7 +133,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "💾 CARD DATABASE",
+                    text = "Card Database",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 24.sp
@@ -142,7 +141,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = "🏴‍☠️ ELITE EMV PROFILE MANAGEMENT 💀",
+                    text = "EMV Profile Management System",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center
@@ -155,9 +154,9 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatsCard("📊 Total Cards", cardProfiles.size.toString())
-                    StatsCard("🎯 Filtered", filteredAndSortedCards.size.toString())
-                    StatsCard("🔥 Active", cardProfiles.count { it.isEmulationReady() }.toString())
+                    StatsCard("Total Cards", cardProfiles.size.toString())
+                    StatsCard("Filtered", filteredAndSortedCards.size.toString())
+                    StatsCard("Ready", cardProfiles.count { it.isEmulationReady() }.toString())
                 }
             }
         }
@@ -175,7 +174,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text("🔍 Search cards...") },
+                    label = { Text("Search cards...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -197,7 +196,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                         onExpandedChange = { sortExpanded = it }
                     ) {
                         OutlinedTextField(
-                            value = "📋 Sort: $selectedSortOption",
+                            value = "Sort: $selectedSortOption",
                             onValueChange = {},
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sortExpanded) },
@@ -220,12 +219,40 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                         }
                     }
                     
-                    // Add Card Button
-                    FloatingActionButton(
-                        onClick = { showCreateDialog = true },
-                        containerColor = MaterialTheme.colorScheme.primary
+                    // Action Buttons Row
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Card")
+                        // Import/Export Button
+                        OutlinedButton(
+                            onClick = { showImportExportDialog = true }
+                        ) {
+                            Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Backup")
+                        }
+                        
+                        // Bulk Delete Button (only show if cards exist)
+                        if (cardProfiles.isNotEmpty()) {
+                            OutlinedButton(
+                                onClick = { showBulkDeleteConfirm = true },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.Red
+                                )
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Clear All")
+                            }
+                        }
+                        
+                        // Add Card Button
+                        FloatingActionButton(
+                            onClick = { showCreateDialog = true },
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add Card")
+                        }
                     }
                 }
             }
@@ -244,7 +271,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                 ) {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("⚡ Loading EMV profiles...")
+                    Text("Loading EMV profiles...")
                 }
             }
         } else if (filteredAndSortedCards.isEmpty()) {
@@ -258,7 +285,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (cardProfiles.isEmpty()) "�� NO CARDS IN DATABASE" else "🔍 NO MATCHING CARDS",
+                        text = if (cardProfiles.isEmpty()) "No Cards in Database" else "No Matching Cards",
                         style = MaterialTheme.typography.headlineSmall,
                         textAlign = TextAlign.Center
                     )
@@ -298,10 +325,61 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                         cardManager.saveCardProfile(newProfile)
                         cardProfiles = cardManager.getAllCardProfiles()
                         showCreateDialog = false
-                        Timber.d("💾 [DB] Created new card profile: ${emvCardData.pan}")
+                        Timber.d("Database: Created new card profile: ${emvCardData.pan}")
                     } catch (e: Exception) {
-                        Timber.e(e, "💾 [DB] Failed to create card profile")
+                        Timber.e(e, "Database: Failed to create card profile")
                     }
+                }
+            }
+        )
+    }
+    
+    // Import/Export Dialog
+    if (showImportExportDialog) {
+        CardImportExportDialog(
+            cardManager = cardManager,
+            onDismiss = { showImportExportDialog = false },
+            onComplete = { message ->
+                scope.launch {
+                    cardProfiles = cardManager.getAllCardProfiles()
+                    showImportExportDialog = false
+                    Timber.d("Database: Import/Export completed - $message")
+                }
+            }
+        )
+    }
+    
+    // Bulk Delete Confirmation
+    if (showBulkDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showBulkDeleteConfirm = false },
+            title = { Text("⚠️ Clear All Card Profiles") },
+            text = { 
+                Text("This will permanently delete ALL ${cardProfiles.size} card profiles from your database.\n\nThis action cannot be undone. Consider exporting a backup first.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                cardProfiles.forEach { profile ->
+                                    cardManager.deleteCardProfile(profile.id)
+                                }
+                                cardProfiles = cardManager.getAllCardProfiles()
+                                showBulkDeleteConfirm = false
+                                Timber.d("Database: Bulk delete completed")
+                            } catch (e: Exception) {
+                                Timber.e(e, "Database: Failed to bulk delete profiles")
+                            }
+                        }
+                    }
+                ) {
+                    Text("DELETE ALL", color = Color.Red, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBulkDeleteConfirm = false }) {
+                    Text("CANCEL")
                 }
             }
         )
@@ -318,9 +396,9 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                         cardManager.saveCardProfile(updatedProfile)
                         cardProfiles = cardManager.getAllCardProfiles()
                         showEditDialog = null
-                        Timber.d("💾 [DB] Updated card profile: ${updatedProfile.id}")
+                        Timber.d("Database: Updated card profile: ${updatedProfile.id}")
                     } catch (e: Exception) {
-                        Timber.e(e, "💾 [DB] Failed to update card profile")
+                        Timber.e(e, "Database: Failed to update card profile")
                     }
                 }
             }
@@ -330,7 +408,7 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
     showDeleteConfirm?.let { profile ->
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("🗑️ DELETE CARD PROFILE") },
+            title = { Text("Delete Card Profile") },
             text = { 
                 Text("Are you sure you want to delete this EMV card profile?\n\n${profile.emvCardData.getMaskedPan()}\n${profile.emvCardData.cardholderName ?: "Unknown Cardholder"}")
             },
@@ -342,14 +420,14 @@ fun CardDatabaseScreen(cardManager: CardProfileManager) {
                                 cardManager.deleteCardProfile(profile.id)
                                 cardProfiles = cardManager.getAllCardProfiles()
                                 showDeleteConfirm = null
-                                Timber.d("💾 [DB] Deleted card profile: ${profile.id}")
+                                Timber.d("Database: Deleted card profile: ${profile.id}")
                             } catch (e: Exception) {
-                                Timber.e(e, "💾 [DB] Failed to delete card profile")
+                                Timber.e(e, "Database: Failed to delete card profile")
                             }
                         }
                     }
                 ) {
-                    Text("🔥 DELETE", color = Color.Red)
+                    Text("DELETE", color = Color.Red)
                 }
             },
             dismissButton = {
@@ -418,14 +496,14 @@ fun CardProfileItem(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "💳 ${profile.emvCardData.detectCardType().name}",
+                        text = "${profile.emvCardData.detectCardType().name}",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold
                         ),
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "🔢 ${profile.emvCardData.getMaskedPan()}",
+                        text = "${profile.emvCardData.getMaskedPan()}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                     )
@@ -448,7 +526,7 @@ fun CardProfileItem(
                 val cardholderName = profile.emvCardData.cardholderName
                 if (cardholderName != null && cardholderName.isNotEmpty()) {
                     Text(
-                        text = "👤 $cardholderName",
+                        text = "Cardholder: $cardholderName",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -456,20 +534,20 @@ fun CardProfileItem(
                 val expiryDate = profile.emvCardData.expiryDate
                 if (expiryDate != null && expiryDate.isNotEmpty()) {
                     Text(
-                        text = "📅 Expires: $expiryDate",
+                        text = "Expires: $expiryDate",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }
                 
                 Text(
-                    text = "📝 ${profile.apduLogs.size} APDU Commands | 🎯 ${profile.getAttackCompatibility().size} Attack Vectors",
+                    text = "${profile.apduLogs.size} APDU Commands | ${profile.getAttackCompatibility().size} Test Vectors",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
                 
                 Text(
-                    text = "🕒 Created: ${profile.createdTimestamp}",
+                    text = "Created: ${profile.createdTimestamp}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
@@ -496,7 +574,7 @@ fun CardProfileItem(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = if (profile.isEmulationReady()) "🔥 READY FOR ATTACKS" else "⚠️ NEEDS MORE DATA",
+                        text = if (profile.isEmulationReady()) "READY FOR TESTING" else "NEEDS MORE DATA",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.Bold
                         ),

@@ -34,9 +34,8 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@drawable/mag_spoof"
+        android:icon="@android:drawable/ic_menu_info_details"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/mag_spoof"
         android:supportsRtl="true"
         android:theme="@style/Theme.MagSp00f"
         tools:targetApi="31">
@@ -45,12 +44,44 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.MagSp00f">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            
+            <!-- DISABLED: NFC Intent Filters - Let CardReadingFragment control NFC when START clicked -->
+            <!--
+            <intent-filter>
+                <action android:name="android.nfc.action.TAG_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.nfc.action.TECH_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            -->
+            
+            <!-- DISABLED: NFC Tech Filter Meta-data -->
+            <!--
+            <meta-data android:name="android.nfc.action.TECH_DISCOVERED"
+                android:resource="@xml/nfc_tech_filter" />
+            -->
         </activity>
+
+        <!-- Card Reading Activity -->
+        <activity
+            android:name=".cardreading.ui.CardReadingActivity"
+            android:exported="false"
+            android:label="Card Reading"
+            android:parentActivityName=".ui.MainActivity"
+            android:theme="@style/Theme.MagSp00f" />
 
         <!-- NFC Host Card Emulation Service -->
         <service

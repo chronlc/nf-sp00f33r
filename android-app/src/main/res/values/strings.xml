@@ -1,54 +1,13 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">mag-sp00f</string>
-    <string name="hce_service_description">Magstripe Emulation Service</string>
-    
-    <!-- Connection Status -->
-    <string name="connected">Connected</string>
-    <string name="disconnected">Disconnected</string>
-    <string name="connecting">Connecting</string>
-    <string name="error">Error</string>
-    
-    <!-- Connection Modes -->
-    <string name="mode_off">Mode: OFF</string>
-    <string name="mode_usb">Mode: USB OTG</string>
-    <string name="mode_bluetooth">Mode: Bluetooth HC-06</string>
-    <string name="off">OFF</string>
-    <string name="usb">USB</string>
-    <string name="bluetooth">Bluetooth</string>
-    
-    <!-- Emulation -->
-    <string name="emulation_center">Emulation Center</string>
-    <string name="connection_status">Connection Status</string>
-    <string name="connection_mode">Connection Mode</string>
-    <string name="emulation_controls">Emulation Controls</string>
-    <string name="stopped">Stopped</string>
-    <string name="running">Running</string>
-    <string name="start">Start</string>
-    <string name="stop">Stop</string>
-    <string name="paused">Paused</string>
-    <string name="ready">Ready</string>
-    
-    <!-- Test Functions -->
-    <string name="test_functions">Test Functions</string>
-    <string name="test_pn532_connection">Test PN532 Connection</string>
-    <string name="test_visa_ppse_flow">Test VISA PPSE Flow</string>
-    <string name="status_messages">Status Messages</string>
-    
-    <!-- Navigation -->
-    <string name="bottom_nav_emulation">💀 EMU</string>
-    <string name="bottom_nav_hardware">📞 HW</string>
-    <string name="bottom_nav_logs">⚡ LOGS</string>
-    <string name="bottom_nav_fuzzer">🔥 FUZZ</string>
-    <string name="bottom_nav_settings">🎯 CFG</string>
+    <string name="bottom_nav_home">Home</string>
+    <string name="bottom_nav_emulation">Emulation</string>
+    <string name="bottom_nav_card_reading">Read</string>
+    <string name="bottom_nav_hardware">Hardware</string>
+    <string name="bottom_nav_logs">Logs</string>
+    <string name="bottom_nav_fuzzer">Fuzzer</string>
+    <string name="bottom_nav_settings">Settings</string>
     <string name="bottom_nav_track2">Track2</string>
     <string name="bottom_nav_emu">EMU</string>
-    
-    <!-- Descriptions -->
-    <string name="visa_msd_description">VISA MSD Emulation</string>
-    <string name="us_debit_description">US Debit Emulation</string>
-    <string name="ppse_description">Payment System Environment</string>
-    
-    <!-- Logo -->
-    <string name="mag_spoof_logo">Mag-Spoof Logo</string>
+    <string name="hce_service_description">Elite EMV Card Emulation</string>
 </resources>

@@ -3,9 +3,9 @@
     android:description="@string/hce_service_description"
     android:requireDeviceUnlock="false">
 
-    <!-- Enhanced Payment AIDs with PPSE routing fix -->
+    <!-- FIXED: Use category="other" to avoid payment conflicts per Android Demo pattern -->
     <aid-group
-        android:category="payment"
+        android:category="other"
         android:description="@string/hce_service_description">
         <!-- PPSE AIDs - Contactless and Contact -->
         <aid-filter android:name="325041592E5359532E4444463031" />
