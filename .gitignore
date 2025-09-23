@@ -73,3 +73,10 @@ docs/html/
 
 # 📞 READY FOR 31337 DEVELOPMENT! 📞docs/emv.html
 *.html
+
+# Generated cleanup ignores
+releases/
+backups/
+.venv/
+nfspoof3.png
+mag-spoof.png
