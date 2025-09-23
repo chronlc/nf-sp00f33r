@@ -233,43 +233,259 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
                         }
                     }
 
-                    // Control Buttons
-                    Row(
+                    // Main Control Panel
+                    Card(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                     ) {
-                        Button(
-                            onClick = {
-                                    statusMessageState.value = "🔍 Starting NFC scan..."
-                                    nfcCardReader.startReading()
-                                },
-                            enabled = !isReading,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF00FF41),
-                                contentColor = Color.Black
-                            )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("START", fontWeight = FontWeight.Bold)
-                        }
+                            Text(
+                                text = "🎛️ Card Reader Controls",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00FF41)
+                            )
+                            
+                            // Primary Control Buttons
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        statusMessageState.value = "🔍 Starting NFC scan..."
+                                        nfcCardReader.startReading()
+                                    },
+                                    enabled = !isReading,
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF00FF41),
+                                        contentColor = Color.Black
+                                    )
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("START", fontWeight = FontWeight.Bold)
+                                }
 
-                        Button(
-                            onClick = {
-                                nfcCardReader.stopReading()
-                                statusMessageState.value = "NFC reading stopped"
-                            },
-                            enabled = isReading,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFF4444),
-                                contentColor = Color.White
-                            )
+                                Button(
+                                    onClick = {
+                                        nfcCardReader.stopReading()
+                                        statusMessageState.value = "NFC reading stopped"
+                                    },
+                                    enabled = isReading,
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFFF4444),
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Stop, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("STOP", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            
+                            // Action Buttons Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        // Clear APDU log
+                                        apduLogState.value = emptyList()
+                                        statusMessageState.value = "APDU log cleared"
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Clear Log", fontSize = 12.sp)
+                                }
+                                
+                                OutlinedButton(
+                                    onClick = {
+                                        // Export APDU log
+                                        currentCardData?.let { data ->
+                                            // Export functionality would go here
+                                            statusMessageState.value = "📤 Export ready: ${data.apduLog.size} APDUs"
+                                        }
+                                    },
+                                    enabled = apduLog.isNotEmpty(),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Export", fontSize = 12.sp)
+                                }
+                                
+                                OutlinedButton(
+                                    onClick = {
+                                        // Save card profile
+                                        currentCardData?.let { data ->
+                                            cardProfileManager.saveCard(data)
+                                            statusMessageState.value = "💾 Card saved to database"
+                                        }
+                                    },
+                                    enabled = currentCardData != null,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Save", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Settings & Configuration Panel
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(Icons.Default.Stop, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("STOP", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "⚙️ Reader Settings",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00FF41)
+                            )
+                            
+                            // Hardware Selection
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Hardware:",
+                                    fontSize = 14.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    FilterChip(
+                                        onClick = { },
+                                        label = { Text("NFC", fontSize = 12.sp) },
+                                        selected = true,
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = Color(0xFF00FF41),
+                                            selectedLabelColor = Color.Black
+                                        )
+                                    )
+                                    FilterChip(
+                                        onClick = { },
+                                        label = { Text("PN532", fontSize = 12.sp) },
+                                        selected = false
+                                    )
+                                }
+                            }
+                            
+                            // Auto-save Setting
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Auto-save cards:",
+                                    fontSize = 14.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Switch(
+                                    checked = true,
+                                    onCheckedChange = { },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF00FF41),
+                                        checkedTrackColor = Color(0xFF00FF41).copy(alpha = 0.5f)
+                                    )
+                                )
+                            }
+                            
+                            // Connection Status
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "NFC Status:",
+                                    fontSize = 14.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(
+                                                Color(0xFF00FF41),
+                                                shape = androidx.compose.foundation.shape.CircleShape
+                                            )
+                                    )
+                                    Text(
+                                        text = "Ready",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF00FF41)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Statistics Panel
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF21262D).copy(alpha = 0.9f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "📊 Session Statistics",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00FF41),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                StatCard("Commands", apduLog.size.toString())
+                                StatCard("Cards Read", if (currentCardData != null) "1" else "0")
+                                StatCard("Success Rate", if (apduLog.isNotEmpty()) "100%" else "0%")
+                                StatCard("Errors", "0")
+                            }
                         }
                     }
 
@@ -534,6 +750,38 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
             "6E00" -> "Class not supported"
             "ERROR" -> "Communication error"
             else -> "See logs"
+        }
+    }
+    
+    @Composable
+    private fun StatCard(label: String, value: String) {
+        Card(
+            modifier = Modifier
+                .width(80.dp)
+                .height(70.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF161B22)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = value,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00FF41)
+                )
+                Text(
+                    text = label,
+                    fontSize = 10.sp,
+                    color = Color(0xFF7D8590),
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 

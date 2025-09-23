@@ -47,6 +47,33 @@ NO SAFE CALLS (?), NO SAFE NULL, NO SILENT KILL APP STUFF, FULL FUNCTIONING PROD
 PROGRAM FEATURE ADDS OR CHANGES
 @agent (AFTER COMPLETING A PROGRAM FEATURE ADD OR CHANGE ON THIS LIST REMOVE IT AND MARK IT  COMPLETE SO WE DONT REDO ON A SYNC, SCAN TO MAKE SURE WE HAVENT ALREADY IMPLETEMENTED FEATURE)
 
+## IMMEDIATE PRIORITIES - READ MENU & CARD DB MENU FULL UI
 
+### 🏆 READ MENU - MISSING UI FUNCTIONS (CRITICAL)
+- Settings Panel: NFC timeout controls, retry count selector, auto-save toggle
+- Filter Controls: Card type filter, date range picker, issuer filter
+- Export Functions: APDU log export (JSON/CSV), EMV data export, PDF reports
+- Advanced Options: Custom AID selection dropdown, PDOL override editor
+- Action Buttons: Clear log, Save card profile with tags, Reset session
+- Hardware Panel: NFC vs PN532 selector, connection status indicators  
+- Statistics: Real-time counters (commands sent, errors, success rate)
+- Session Management: Multiple card reading sessions, session history
+
+### 🏆 CARD DB MENU - MISSING UI FUNCTIONS (CRITICAL)  
+- Enhanced Search: Autocomplete, fuzzy search, advanced query builder
+- Filter System: Card type, country code, issuer bank, date range
+- Bulk Operations: Select all checkbox, delete multiple, bulk export
+- Card Details: Full EMV tag viewer, hex data display, metadata editor
+- Data Management: Duplicate detection, merge cards, data validation
+- Analytics Dashboard: Collection stats, issuer charts, risk assessment
+- Import/Export: Multiple formats (JSON, CSV, XML), backup/restore
+- Database Tools: Integrity check, optimization, storage statistics
+
+### 🏆 INTEGRATION REQUIREMENTS (CRITICAL)
+- Auto-save read cards to database with user confirmation
+- Quick database card selection for re-reading/comparison
+- Unified settings panel affecting both Read and DB menus
+- Real-time database updates during card reading sessions
+- Cross-menu card profile synchronization and validation
 
 HERE ARE OUR NEXT GOALS:
