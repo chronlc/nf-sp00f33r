@@ -164,11 +164,14 @@ class NfcCardReader(
     }
     
     /**
-     * NFC Tag discovered - start comprehensive EMV workflow
+     * NFC Tag discovered - start comprehensive EMV workflow with real-time updates
      */
     override fun onTagDiscovered(tag: android.nfc.Tag?) {
         tag?.let { nfcTag ->
             Log.d(TAG, "💀 Card detected: ${nfcTag.techList.joinToString()}")
+            
+            // Notify card detection
+            callback.onCardDetected()
             
             val isoDep = IsoDep.get(nfcTag)
             if (isoDep != null) {
@@ -185,6 +188,8 @@ class NfcCardReader(
                         }
                     }
                 }
+            } else {
+                callback.onError("Card does not support ISO-DEP")
             }
         }
     }
@@ -202,8 +207,10 @@ class NfcCardReader(
         
         try {
             Log.d(TAG, "🚀 Starting comprehensive EMV workflow")
+            callback.onProgress("Starting EMV workflow", 0, 5)
             
             // Step 1: SELECT PPSE
+            callback.onProgress("SELECT PPSE", 1, 5)
             val ppseResponse = sendCommandWithFullLogging(isoDep, SELECT_PPSE, "SELECT PPSE", apduLog)
             if (ppseResponse.isNotEmpty()) {
                 parseEmvResponse(ppseResponse, emvTags, "PPSE Response")
@@ -211,11 +218,13 @@ class NfcCardReader(
             }
             
             // Step 2: Extract AIDs from PPSE response
+            callback.onProgress("Extracting AIDs", 2, 5)
             val aids = extractAidsFromPpse(ppseResponse)
             Log.d(TAG, "🎯 Found ${aids.size} AIDs: ${aids.joinToString()}")
             
             if (aids.isNotEmpty()) {
                 // Step 3: SELECT AID (use first available AID)
+                callback.onProgress("SELECT AID", 3, 5)
                 val selectedAid = aids.first()
                 val selectAidCommand = buildSelectAidCommand(selectedAid)
                 val aidResponse = sendCommandWithFullLogging(isoDep, selectAidCommand, "SELECT AID ($selectedAid)", apduLog)
@@ -225,6 +234,7 @@ class NfcCardReader(
                     Log.d(TAG, "💳 AID selected, parsed ${emvTags.size} total tags")
                     
                     // Step 4: GET PROCESSING OPTIONS (GPO)
+                    callback.onProgress("GET PROCESSING OPTIONS", 4, 5)
                     val pdol = emvTags["9F38"] ?: ""
                     val gpoCommand = buildGpoCommand(pdol)
                     val gpoResponse = sendCommandWithFullLogging(isoDep, gpoCommand, "GET PROCESSING OPTIONS", apduLog)
@@ -234,6 +244,7 @@ class NfcCardReader(
                         Log.d(TAG, "⚡ GPO processed, total tags: ${emvTags.size}")
                         
                         // Step 5: READ APPLICATION DATA (AFL processing)
+                        callback.onProgress("Reading application data", 5, 5)
                         val afl = emvTags["94"]
                         if (afl != null) {
                             readApplicationData(isoDep, afl, emvTags, apduLog)
@@ -299,16 +310,19 @@ class NfcCardReader(
             Log.d(TAG, "    Execution Time: ${executionTime}ms")
             
             // Create detailed APDU log entry
-            apduLog.add(
-                ApduLogEntry(
-                    timestamp = System.currentTimeMillis().toString(),
-                    command = commandHex,
-                    response = responseHex,
-                    statusWord = statusWord,
-                    description = "$description | TX: ${command.size}B | RX: ${fullResponse.size}B | ${executionTime}ms",
-                    executionTimeMs = executionTime
-                )
+            val apduEntry = ApduLogEntry(
+                timestamp = System.currentTimeMillis().toString(),
+                command = commandHex,
+                response = responseHex,
+                statusWord = statusWord,
+                description = "$description | TX: ${command.size}B | RX: ${fullResponse.size}B | ${executionTime}ms",
+                executionTimeMs = executionTime
             )
+            
+            apduLog.add(apduEntry)
+            
+            // Provide real-time callback for UI updates
+            callback.onApduExchanged(apduEntry)
             
             responseData
             

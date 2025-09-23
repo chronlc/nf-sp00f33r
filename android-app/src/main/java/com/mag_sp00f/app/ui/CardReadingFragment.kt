@@ -537,31 +537,68 @@ class CardReadingFragment : Fragment(), CardReadingCallback {
         }
     }
 
-    // Interface implementation
+    // Interface implementation with proper thread safety
     override fun onReadingStarted() {
-        Timber.tag(TAG).d("NFC reading started")
-        isReadingState.value = true
-        statusMessageState.value = "NFC reader active"
+        Timber.tag(TAG).d("🔥 NFC reading started")
+        requireActivity().runOnUiThread {
+            isReadingState.value = true
+            statusMessageState.value = "🔍 NFC reader active - Present card to antenna"
+        }
     }
 
     override fun onReadingStopped() {
-        Timber.tag(TAG).d("NFC reading stopped")
-        isReadingState.value = false
-        statusMessageState.value = "NFC reader stopped"
+        Timber.tag(TAG).d("⚡ NFC reading stopped")
+        requireActivity().runOnUiThread {
+            isReadingState.value = false
+            statusMessageState.value = "NFC reader stopped"
+        }
     }
 
     override fun onCardRead(cardData: EmvCardData) {
-        // Save to database - fixed method name per MCP memory
+        Timber.tag(TAG).d("💳 Card read complete: PAN=${cardData.pan}")
+        
+        // Save to database
         cardProfileManager.saveCard(cardData)
-        Timber.tag(TAG).d("Card read complete: PAN=${cardData.pan}")
-        // Update UI state with the newly read card
-        currentCardDataState.value = cardData
-        apduLogState.value = cardData.apduLog
-        statusMessageState.value = "Card read: ${cardData.getMaskedPan()}"
+        
+        // Update UI state on main thread
+        requireActivity().runOnUiThread {
+            currentCardDataState.value = cardData
+            apduLogState.value = cardData.apduLog
+            statusMessageState.value = "✅ Card read: ${cardData.getMaskedPan()} | ${cardData.apduLog.size} APDUs"
+            Timber.tag(TAG).d("📊 UI updated with ${cardData.emvTags.size} EMV tags, ${cardData.apduLog.size} APDU commands")
+        }
     }
 
     override fun onError(error: String) {
-        Timber.tag(TAG).e("Card read error: $error")
+        Timber.tag(TAG).e("❌ Card read error: $error")
+        requireActivity().runOnUiThread {
+            statusMessageState.value = "❌ Error: $error"
+            isReadingState.value = false
+        }
+    }
+    
+    override fun onApduExchanged(apduEntry: ApduLogEntry) {
+        Timber.tag(TAG).d("📡 APDU exchanged: ${apduEntry.description}")
+        requireActivity().runOnUiThread {
+            // Add new APDU entry to log in real-time
+            val currentLog = apduLogState.value.toMutableList()
+            currentLog.add(apduEntry)
+            apduLogState.value = currentLog
+        }
+    }
+    
+    override fun onCardDetected() {
+        Timber.tag(TAG).d("💳 Card detected")
+        requireActivity().runOnUiThread {
+            statusMessageState.value = "💳 Card detected - Reading..."
+        }
+    }
+    
+    override fun onProgress(step: String, progress: Int, total: Int) {
+        Timber.tag(TAG).d("📊 Progress: $step ($progress/$total)")
+        requireActivity().runOnUiThread {
+            statusMessageState.value = "📊 $step ($progress/$total)"
+        }
     }
 
     override fun onDestroyView() {

@@ -1,9 +1,10 @@
 package com.mag_sp00f.app.cardreading
 
 import com.mag_sp00f.app.data.EmvCardData
+import com.mag_sp00f.app.data.ApduLogEntry
 
 /**
- * Callback interface for NFC card reading operations
+ * Enhanced callback interface for real-time NFC card reading operations
  */
 interface CardReadingCallback {
     
@@ -18,12 +19,27 @@ interface CardReadingCallback {
     fun onReadingStopped()
     
     /**
-     * Called when a card is successfully read
+     * Called when a card is successfully read with complete data
      */
     fun onCardRead(cardData: EmvCardData)
     
     /**
-     * Called when an error occurs
+     * Called when an error occurs during reading
      */
     fun onError(error: String)
+    
+    /**
+     * Called for each APDU command/response during reading (real-time updates)
+     */
+    fun onApduExchanged(apduEntry: ApduLogEntry) {}
+    
+    /**
+     * Called when card is detected but before reading starts
+     */
+    fun onCardDetected() {}
+    
+    /**
+     * Called with progress updates during EMV workflow
+     */
+    fun onProgress(step: String, progress: Int, total: Int) {}
 }
